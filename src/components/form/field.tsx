@@ -48,10 +48,19 @@ export function Field({ name, label, hint, className, labelClassName, children }
   );
 }
 
+/**
+ * register() plus the field's default value, so server-rendered HTML already
+ * shows existing values (e.g. on the edit page) before hydration.
+ */
+function useRegister(name: string, options?: { valueAsNumber: true }) {
+  const { register, formState } = useFormContext();
+  return { defaultValue: get(formState.defaultValues, name), ...register(name, options) };
+}
+
 type Common = Omit<FieldProps, "children"> & { placeholder?: string; autoComplete?: string };
 
 export function TextInputField({ placeholder, autoComplete, ...field }: Common) {
-  const { register } = useFormContext();
+  const registration = useRegister(field.name);
   return (
     <Field {...field}>
       {(control) => (
@@ -59,7 +68,7 @@ export function TextInputField({ placeholder, autoComplete, ...field }: Common) 
           {...control}
           placeholder={placeholder}
           autoComplete={autoComplete}
-          {...register(field.name)}
+          {...registration}
         />
       )}
     </Field>
@@ -67,7 +76,7 @@ export function TextInputField({ placeholder, autoComplete, ...field }: Common) 
 }
 
 export function NumberField({ min, max, ...field }: Common & { min?: number; max?: number }) {
-  const { register } = useFormContext();
+  const registration = useRegister(field.name, { valueAsNumber: true });
   return (
     <Field {...field}>
       {(control) => (
@@ -77,7 +86,7 @@ export function NumberField({ min, max, ...field }: Common & { min?: number; max
           inputMode="numeric"
           min={min}
           max={max}
-          {...register(field.name, { valueAsNumber: true })}
+          {...registration}
         />
       )}
     </Field>
@@ -85,11 +94,11 @@ export function NumberField({ min, max, ...field }: Common & { min?: number; max
 }
 
 export function TextareaField({ placeholder, rows = 3, ...field }: Common & { rows?: number }) {
-  const { register } = useFormContext();
+  const registration = useRegister(field.name);
   return (
     <Field {...field}>
       {(control) => (
-        <Textarea {...control} rows={rows} placeholder={placeholder} {...register(field.name)} />
+        <Textarea {...control} rows={rows} placeholder={placeholder} {...registration} />
       )}
     </Field>
   );
@@ -99,11 +108,11 @@ export function SelectField({
   options,
   ...field
 }: Common & { options: { value: string; label: string }[] }) {
-  const { register } = useFormContext();
+  const registration = useRegister(field.name);
   return (
     <Field {...field}>
       {(control) => (
-        <NativeSelect {...control} {...register(field.name)}>
+        <NativeSelect {...control} {...registration}>
           {options.map((o) => (
             <option key={o.value} value={o.value}>
               {o.label}

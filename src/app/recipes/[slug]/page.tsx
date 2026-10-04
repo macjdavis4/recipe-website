@@ -42,7 +42,7 @@ export default async function RecipePage({ params }: Props) {
           Shared by{" "}
           <Link
             href={`/u/${recipe.author.id}`}
-            className="font-medium text-primary underline underline-offset-4"
+            className="inline-flex min-h-11 items-center font-medium text-primary underline underline-offset-4"
           >
             {recipe.author.name ?? "a home cook"}
           </Link>

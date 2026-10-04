@@ -6,7 +6,7 @@ import type { RecipeCardData } from "../queries";
 import { DIFFICULTY_LABELS } from "../schemas";
 import { RecipeImage } from "./recipe-image";
 
-export function RecipeCard({ recipe }: { recipe: RecipeCardData }) {
+export function RecipeCard({ recipe, priority }: { recipe: RecipeCardData; priority?: boolean }) {
   const total = recipe.prepMinutes + recipe.cookMinutes;
 
   return (
@@ -15,6 +15,7 @@ export function RecipeCard({ recipe }: { recipe: RecipeCardData }) {
         src={recipe.imageUrl}
         alt={recipe.title}
         sizes="(min-width: 1024px) 33vw, (min-width: 640px) 50vw, 100vw"
+        priority={priority}
       />
       <div className="flex flex-1 flex-col gap-2 p-4">
         <h3 className="text-lg leading-snug font-semibold">
@@ -55,9 +56,10 @@ export function RecipeCard({ recipe }: { recipe: RecipeCardData }) {
 export function RecipeGrid({ recipes }: { recipes: RecipeCardData[] }) {
   return (
     <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {recipes.map((recipe) => (
+      {recipes.map((recipe, index) => (
         <li key={recipe.id} className="flex">
-          <RecipeCard recipe={recipe} />
+          {/* The first card is usually the largest image above the fold. */}
+          <RecipeCard recipe={recipe} priority={index === 0} />
         </li>
       ))}
     </ul>

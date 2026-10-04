@@ -35,20 +35,24 @@ export function IngredientsFields() {
               <TextInputField
                 name={`ingredients.${index}.quantity`}
                 label="Amount"
-                placeholder="1 1/2"
+                placeholder="e.g. 1 1/2"
               />
-              <TextInputField name={`ingredients.${index}.unit`} label="Unit" placeholder="cups" />
+              <TextInputField
+                name={`ingredients.${index}.unit`}
+                label="Unit"
+                placeholder="e.g. cups"
+              />
               <TextInputField
                 name={`ingredients.${index}.name`}
                 label="Ingredient"
-                placeholder="red lentils"
+                placeholder="e.g. red lentils"
                 className="col-span-2 sm:col-span-1"
               />
             </div>
             <TextInputField
               name={`ingredients.${index}.note`}
               label="Note (optional)"
-              placeholder="rinsed"
+              placeholder="e.g. rinsed"
             />
           </li>
         ))}

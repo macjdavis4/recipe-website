@@ -7,7 +7,7 @@ const difficultyOptions = DIFFICULTIES.map((d) => ({ value: d, label: DIFFICULTY
 export function BasicsFields() {
   return (
     <FormSection title="The basics">
-      <TextInputField name="title" label="Title" placeholder="Weeknight dal" />
+      <TextInputField name="title" label="Title" placeholder="e.g. Weeknight dal" />
       <TextareaField
         name="description"
         label="Description"
@@ -21,7 +21,7 @@ export function BasicsFields() {
       </div>
       <div className="grid gap-4 sm:grid-cols-2">
         <SelectField name="difficulty" label="Difficulty" options={difficultyOptions} />
-        <TextInputField name="cuisine" label="Cuisine (optional)" placeholder="Indian" />
+        <TextInputField name="cuisine" label="Cuisine (optional)" placeholder="e.g. Indian" />
       </div>
     </FormSection>
   );

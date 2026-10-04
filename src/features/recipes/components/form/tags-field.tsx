@@ -46,7 +46,7 @@ export function TagsField() {
             }}
             aria-invalid={shownError ? true : undefined}
             aria-describedby={shownError ? `${id}-error` : undefined}
-            placeholder="vegan"
+            placeholder="e.g. vegan"
           />
           <Button type="button" variant="outline" onClick={add}>
             Add
