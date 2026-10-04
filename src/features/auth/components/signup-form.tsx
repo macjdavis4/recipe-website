@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { signupAction } from "../actions";
 import { signupSchema } from "../schemas";
-import { FormAlert } from "./form-alert";
+import { FormAlert } from "@/components/form/form-alert";
 import { TextField } from "./text-field";
 
 export function SignupForm({ callbackUrl }: { callbackUrl: string }) {
