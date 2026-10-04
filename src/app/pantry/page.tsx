@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { PantryForm } from "@/features/pantry/components/pantry-form";
 import { PantryIdeas } from "@/features/pantry/components/pantry-ideas";
-import { STAPLES } from "@/features/pantry/matching";
 import { rankRecipesByPantry } from "@/features/pantry/ranking";
 import { parsePantryText } from "@/features/pantry/schemas";
 import { RecipeCard } from "@/features/recipes/components/recipe-card";
@@ -17,10 +16,9 @@ export default async function PantryPage({ searchParams }: { searchParams: Promi
   // Staples default on for a first visit; after that the checkbox decides.
   const staples = params.have === undefined ? true : params.staples === "1";
   const items = parsePantryText(have);
-  const searchItems = staples ? [...new Set([...items, ...STAPLES])] : items;
 
   const [matches, session] = await Promise.all([
-    items.length ? rankRecipesByPantry(searchItems) : Promise.resolve([]),
+    items.length ? rankRecipesByPantry(items, { staples }) : Promise.resolve([]),
     auth(),
   ]);
   const query = new URLSearchParams({ have, ...(staples ? { staples: "1" } : {}) }).toString();
