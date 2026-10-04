@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
 import { SITE_NAME } from "@/lib/site";
 import { DesktopNav } from "./desktop-nav";
 import { MobileSheet } from "./mobile-sheet";
 import { ThemeToggle } from "./theme-toggle";
+import { UserMenu } from "./user-menu";
 
 export function SiteHeader() {
   return (
@@ -23,10 +23,7 @@ export function SiteHeader() {
         <div className="hidden md:block">
           <ThemeToggle />
         </div>
-        {/* Replaced by the user menu once auth lands in Phase 2. */}
-        <Button asChild variant="outline">
-          <Link href="/login">Log in</Link>
-        </Button>
+        <UserMenu />
       </div>
     </header>
   );
