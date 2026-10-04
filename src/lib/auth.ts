@@ -20,6 +20,14 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   return {
     ...authConfig,
     adapter: PrismaAdapter(db),
+    logger: {
+      // A wrong password is expected, not a server error. Skip its stack trace.
+      error(error) {
+        // Check Auth.js's stable `type`; class names are minified in production builds.
+        if ((error as { type?: string }).type === "CredentialsSignin") return;
+        console.error(error);
+      },
+    },
     providers: [
       Credentials({
         credentials: { email: {}, password: {} },
