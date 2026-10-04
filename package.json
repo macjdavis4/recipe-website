@@ -17,7 +17,8 @@
     "db:generate": "prisma generate",
     "postinstall": "prisma generate",
     "check:bundle": "node scripts/check-client-bundle.mjs",
-    "db:seed": "prisma db seed"
+    "db:seed": "prisma db seed",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.131.0",
@@ -46,6 +47,7 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4",
     "@types/bcrypt": "^6.0.0",
     "@types/node": "^22.20.5",
