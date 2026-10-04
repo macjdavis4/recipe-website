@@ -1,0 +1,160 @@
+// Larder data model. See CLAUDE.md "Data model".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Difficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum AiUsageKind {
+  CHAT
+  PANTRY
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  // Required by the Auth.js Prisma adapter for OAuth sign-ins.
+  emailVerified DateTime?
+  // Null for users who only sign in with OAuth.
+  passwordHash  String?
+  image         String?
+  createdAt     DateTime  @default(now())
+
+  accounts Account[]
+  recipes  Recipe[]
+  aiUsage  AiUsage[]
+}
+
+// Auth.js OAuth account link. Sessions use JWTs, so there is no Session table.
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Recipe {
+  id          String     @id @default(cuid())
+  slug        String     @unique
+  title       String
+  description String     @db.Text
+  imageUrl    String?
+  prepMinutes Int
+  cookMinutes Int
+  servings    Int
+  difficulty  Difficulty
+  cuisine     String?
+  authorId    String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  author      User         @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  ingredients Ingredient[]
+  steps       Step[]
+  tags        RecipeTag[]
+
+  @@index([authorId])
+  @@index([createdAt])
+  @@index([cuisine])
+}
+
+model Ingredient {
+  id             String  @id @default(cuid())
+  recipeId       String
+  position       Int
+  // String so values like "1/2" or "1 1/2" survive as written.
+  quantity       String?
+  unit           String?
+  name           String
+  // Lowercased, trimmed, singularized. Used for pantry matching.
+  normalizedName String
+  note           String?
+
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, position])
+  @@index([normalizedName])
+}
+
+model Step {
+  id       String @id @default(cuid())
+  recipeId String
+  position Int
+  text     String @db.Text
+
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+
+  @@unique([recipeId, position])
+}
+
+// Cuisine-agnostic labels, including dietary ones (vegan, gluten-free).
+model Tag {
+  id      String      @id @default(cuid())
+  name    String      @unique
+  recipes RecipeTag[]
+}
+
+model RecipeTag {
+  recipeId String
+  tagId    String
+
+  recipe Recipe @relation(fields: [recipeId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([recipeId, tagId])
+  @@index([tagId])
+}
+
+// One row per AI request. Counted per user per hour for rate limiting.
+model AiUsage {
+  id        String      @id @default(cuid())
+  userId    String
+  kind      AiUsageKind
+  createdAt DateTime    @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Failed login attempts, keyed by email and by IP. Kept in the database so
+// the app container stays stateless (see docs/PLAN.md, decision 3).
+model LoginAttempt {
+  id        String   @id @default(cuid())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+}
