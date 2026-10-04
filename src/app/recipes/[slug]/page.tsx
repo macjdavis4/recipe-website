@@ -3,6 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
 import { Badge } from "@/components/ui/badge";
+import { AskAboutRecipe } from "@/features/ai/ask-about-recipe";
 import { IngredientsPanel } from "@/features/recipes/components/ingredients-panel";
 import { OwnerActions } from "@/features/recipes/components/owner-actions";
 import { RecipeImage } from "@/features/recipes/components/recipe-image";
@@ -102,6 +103,8 @@ export default async function RecipePage({ params }: Props) {
           </ol>
         </section>
       </div>
+
+      <AskAboutRecipe recipeId={recipe.id} slug={recipe.slug} signedIn={Boolean(session?.user)} />
     </article>
   );
 }
