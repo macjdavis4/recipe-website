@@ -41,7 +41,7 @@ export default async function RecipesPage({
       </div>
       <RecipeFilters filters={filters} cuisines={options.cuisines} tags={options.tags} />
       {recipes.length > 0 ? (
-        <RecipeGrid recipes={recipes} />
+        <RecipeGrid recipes={recipes} heading="Results" />
       ) : (
         <div className="rounded-xl border border-dashed p-8 text-center">
           <h2 className="text-xl font-semibold">

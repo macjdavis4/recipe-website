@@ -56,15 +56,19 @@ export function RecipeCard({ recipe, priority, children }: CardProps) {
   );
 }
 
-export function RecipeGrid({ recipes }: { recipes: RecipeCardData[] }) {
+/** A grid of cards under a visually hidden h2, so card titles (h3) keep the heading order. */
+export function RecipeGrid({ recipes, heading }: { recipes: RecipeCardData[]; heading: string }) {
   return (
-    <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-      {recipes.map((recipe, index) => (
-        <li key={recipe.id} className="flex">
-          {/* The first card is usually the largest image above the fold. */}
-          <RecipeCard recipe={recipe} priority={index === 0} />
-        </li>
-      ))}
-    </ul>
+    <section aria-label={heading}>
+      <h2 className="sr-only">{heading}</h2>
+      <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {recipes.map((recipe, index) => (
+          <li key={recipe.id} className="flex">
+            {/* The first card is usually the largest image above the fold. */}
+            <RecipeCard recipe={recipe} priority={index === 0} />
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }

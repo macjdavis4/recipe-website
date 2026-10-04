@@ -28,7 +28,7 @@ export default async function ProfilePage({ params }: Props) {
         </p>
       </header>
       {user.recipes.length > 0 ? (
-        <RecipeGrid recipes={user.recipes} />
+        <RecipeGrid recipes={user.recipes} heading="Recipes" />
       ) : (
         <p className="rounded-xl border border-dashed p-8 text-center text-muted-foreground">
           No recipes shared yet.
