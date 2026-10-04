@@ -30,6 +30,15 @@ A community recipe sharing site with two AI features: a cooking Q&A assistant an
 - Migrations run with `prisma migrate deploy` when the app container starts. Never use `migrate dev` or `db push` in production.
 - Keep everything 12-factor: all config comes from env vars, and the app container holds no state.
 
+## Working in Claude Code cloud sessions
+- This project is built in Claude Code on the web. Each session is a fresh Ubuntu VM with the repo cloned, and it can pause or be rebuilt between phases. Never rely on state outside the repo.
+- For local dev and tests, start Postgres with `docker compose up -d` (Docker is available). If Docker has trouble, fall back to `service postgresql start`.
+- Never commit secrets. Real values live in the cloud environment's variables (dev only) and in GitHub Actions secrets (production).
+- Never call the real AI API in tests. Use the mocked provider.
+- Do not attempt to SSH into or deploy to the Droplet from a session. Production deploys happen only through GitHub Actions after a merge to main.
+- If installing Playwright browsers fails because of network restrictions, say so and continue. Do not try workarounds.
+- Commit after each completed step with a clear message, and open a pull request at the end of each phase.
+
 ## Data model
 - **User**: id, name, email (unique), passwordHash (nullable for OAuth users), image, createdAt. Plus the Auth.js Account and VerificationToken tables.
 - **Recipe**: id, slug (unique), title, description, imageUrl, prepMinutes, cookMinutes, servings, difficulty (EASY | MEDIUM | HARD), cuisine, authorId, createdAt, updatedAt
