@@ -5,6 +5,7 @@ import { createMockProvider } from "./mock";
 import { AIUnavailableError, type AIProvider } from "./provider";
 
 export * from "./provider";
+export { isUpstreamError } from "./anthropic";
 
 let provider: AIProvider | undefined;
 

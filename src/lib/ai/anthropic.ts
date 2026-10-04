@@ -3,6 +3,11 @@ import Anthropic from "@anthropic-ai/sdk";
 import { zodOutputFormat } from "@anthropic-ai/sdk/helpers/zod";
 import { AIOutputError, AIRefusalError, type AIProvider } from "./provider";
 
+/** True for errors from the Anthropic API itself (auth, rate limits, overload, outages). */
+export function isUpstreamError(error: unknown): boolean {
+  return error instanceof Anthropic.APIError;
+}
+
 /**
  * Anthropic-backed provider. The model comes from AI_MODEL, so this sends no
  * model-specific options (thinking, effort) and works across Claude models.
