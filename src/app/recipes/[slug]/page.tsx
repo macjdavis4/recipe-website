@@ -11,6 +11,7 @@ import { formatMinutes } from "@/features/recipes/format";
 import { getRecipeBySlug } from "@/features/recipes/queries";
 import { DIFFICULTY_LABELS } from "@/features/recipes/schemas";
 import { auth } from "@/lib/auth";
+import { SITE_NAME } from "@/lib/site";
 
 type Props = { params: Promise<{ slug: string }> };
 
@@ -18,7 +19,21 @@ const loadRecipe = cache(getRecipeBySlug);
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const recipe = await loadRecipe((await params).slug);
-  return recipe ? { title: recipe.title, description: recipe.description.slice(0, 160) } : {};
+  if (!recipe) return {};
+  const description = recipe.description.slice(0, 160);
+  return {
+    title: recipe.title,
+    description,
+    alternates: { canonical: `/recipes/${recipe.slug}` },
+    // A page's openGraph replaces the layout's, so repeat the site name.
+    openGraph: {
+      type: "article",
+      siteName: SITE_NAME,
+      title: recipe.title,
+      description,
+      url: `/recipes/${recipe.slug}`,
+    },
+  };
 }
 
 export default async function RecipePage({ params }: Props) {

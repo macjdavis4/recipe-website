@@ -10,10 +10,19 @@ import "./globals.css";
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", display: "swap" });
 
-export const metadata: Metadata = {
-  title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
-  description: "Share recipes, cook from what you have, and ask a cooking assistant.",
-};
+const DESCRIPTION = "Share recipes, cook from what you have, and ask a cooking assistant.";
+
+// A function so the public URL is read at request time, not at build time.
+export function generateMetadata(): Metadata {
+  return {
+    // AUTH_URL is the public site URL (https://your-domain in production).
+    metadataBase: new URL(process.env.AUTH_URL ?? "http://localhost:3000"),
+    title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
+    description: DESCRIPTION,
+    openGraph: { siteName: SITE_NAME, type: "website", locale: "en_US", description: DESCRIPTION },
+    twitter: { card: "summary_large_image" },
+  };
+}
 
 export const viewport: Viewport = {
   width: "device-width",
