@@ -18,6 +18,7 @@
     "postinstall": "prisma generate"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.131.0",
     "@auth/prisma-adapter": "^2.11.3",
     "@aws-sdk/client-s3": "^3.1146.0",
     "@hookform/resolvers": "^5.9.1",
@@ -33,6 +34,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-hook-form": "^7.89.0",
+    "react-markdown": "^10.1.0",
     "server-only": "^0.0.1",
     "shadcn": "^4.21.1",
     "sonner": "^2.0.8",
