@@ -13,7 +13,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx", "prisma/**/*.test.ts"],
     env: { NODE_ENV: "test" },
     // next-auth imports "next/server" without an extension, which plain Node ESM rejects.
     server: { deps: { inline: ["next-auth"] } },
