@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form";
 import { Button } from "@/components/ui/button";
 import { loginAction } from "../actions";
 import { loginSchema } from "../schemas";
-import { FormAlert } from "./form-alert";
+import { FormAlert } from "@/components/form/form-alert";
 import { TextField } from "./text-field";
 
 export function LoginForm({
