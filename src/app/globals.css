@@ -35,7 +35,7 @@
 }
 
 /*
- * Larder palette: herb green, terracotta, off-white.
+ * Site palette: herb green, terracotta, off-white.
  * Text pairs are checked for WCAG AA (4.5:1) and borders of form controls
  * for 3:1 in src/app/theme-contrast.test.ts. Update the test if you add pairs.
  */

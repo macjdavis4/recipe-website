@@ -13,8 +13,10 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { SITE_NAME } from "@/lib/site";
 import { cn } from "@/lib/utils";
 import { NAV_LINKS, isActive } from "./nav-links";
+import { ThemeToggle } from "./theme-toggle";
 
 export function MobileSheet() {
   const [open, setOpen] = useState(false);
@@ -29,7 +31,7 @@ export function MobileSheet() {
       </SheetTrigger>
       <SheetContent side="left" className="w-72">
         <SheetHeader>
-          <SheetTitle className="font-heading text-xl">Larder</SheetTitle>
+          <SheetTitle className="pr-10 font-heading text-xl">{SITE_NAME}</SheetTitle>
           <SheetDescription>Browse, cook, and share recipes.</SheetDescription>
         </SheetHeader>
         <nav aria-label="Mobile">
@@ -55,6 +57,10 @@ export function MobileSheet() {
             })}
           </ul>
         </nav>
+        <div className="mt-auto flex items-center justify-between border-t px-4 py-3">
+          <span className="text-sm font-medium">Theme</span>
+          <ThemeToggle />
+        </div>
       </SheetContent>
     </Sheet>
   );

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BookOpen, ChefHat, Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SITE_NAME } from "@/lib/site";
 
 const FEATURES = [
   {
@@ -31,8 +32,8 @@ export default function HomePage() {
           Cook what you love. Share what works.
         </h1>
         <p className="max-w-xl text-lg text-muted-foreground">
-          Larder is a home for the recipes you actually make, with a little help for the nights you
-          are not sure what to cook.
+          {SITE_NAME} is a home for the recipes you actually make, with a little help for the nights
+          you are not sure what to cook.
         </p>
         <div className="flex flex-wrap gap-3">
           <Button asChild size="lg">

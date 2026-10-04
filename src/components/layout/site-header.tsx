@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { SITE_NAME } from "@/lib/site";
 import { DesktopNav } from "./desktop-nav";
 import { MobileSheet } from "./mobile-sheet";
 import { ThemeToggle } from "./theme-toggle";
@@ -11,14 +12,17 @@ export function SiteHeader() {
         <MobileSheet />
         <Link
           href="/"
-          className="inline-flex min-h-11 items-center rounded-md font-heading text-2xl font-semibold text-primary"
+          className="inline-flex min-h-11 min-w-0 items-center rounded-md font-heading text-[0.9375rem] font-semibold text-primary sm:text-xl lg:text-2xl"
         >
-          Larder
+          <span className="truncate">{SITE_NAME}</span>
         </Link>
-        <div className="ml-4 flex-1">
+        <div className="flex-1 md:ml-4">
           <DesktopNav />
         </div>
-        <ThemeToggle />
+        {/* On small screens the theme toggle lives in the mobile menu to make room for the name. */}
+        <div className="hidden md:block">
+          <ThemeToggle />
+        </div>
         {/* Replaced by the user menu once auth lands in Phase 2. */}
         <Button asChild variant="outline">
           <Link href="/login">Log in</Link>

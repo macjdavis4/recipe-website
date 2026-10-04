@@ -4,13 +4,14 @@ import { Toaster } from "sonner";
 import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SITE_NAME } from "@/lib/site";
 import "./globals.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const fraunces = Fraunces({ subsets: ["latin"], variable: "--font-fraunces", display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Larder", template: "%s | Larder" },
+  title: { default: SITE_NAME, template: `%s | ${SITE_NAME}` },
   description: "Share recipes, cook from what you have, and ask a cooking assistant.",
 };
 
