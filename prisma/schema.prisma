@@ -157,4 +157,6 @@ model LoginAttempt {
   createdAt DateTime @default(now())
 
   @@index([key, createdAt])
+  // Used to prune old rows.
+  @@index([createdAt])
 }
