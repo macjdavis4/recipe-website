@@ -1,0 +1,152 @@
+# Deploys main to the Droplet: verify, build and push the image to GHCR,
+# then pull and restart over SSH. Production deploys happen only here.
+#
+# Repository secrets:
+#   DEPLOY_HOST          Droplet IP or hostname
+#   DEPLOY_USER          SSH user created by deploy/server-setup.sh (deploy)
+#   DEPLOY_SSH_KEY       private key for that user
+#   DEPLOY_KNOWN_HOSTS   output of `ssh-keyscan <host>`, to pin the host key
+#   PRODUCTION_ENV       full contents of the production .env file
+# Repository variable:
+#   PRODUCTION_URL       e.g. https://recipes.example.com (for the health check)
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  APP_DIR: /opt/larder
+
+jobs:
+  verify:
+    name: Lint, typecheck, unit tests
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test
+
+  image:
+    name: Build and push image
+    needs: verify
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.name.outputs.image }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: name
+        run: echo "image=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: true
+          build-args: APP_VERSION=${{ github.sha }}
+          tags: |
+            ${{ steps.name.outputs.image }}:${{ github.sha }}
+            ${{ steps.name.outputs.image }}:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to the Droplet
+    needs: image
+    runs-on: ubuntu-24.04
+    environment: production
+    permissions:
+      contents: read
+      packages: read
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      IMAGE: ${{ needs.image.outputs.image }}
+    steps:
+      - name: Check deploy settings
+        id: ready
+        run: |
+          if [ -z "$DEPLOY_HOST" ]; then
+            echo "::notice::Deploy secrets are not set yet, so the deploy step was skipped. See README."
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.ok == 'true'
+
+      - name: Set up SSH
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/id_deploy ~/.ssh/known_hosts
+          printf 'Host prod\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_deploy\n  StrictHostKeyChecking yes\n' \
+            "$DEPLOY_HOST" "$DEPLOY_USER" > ~/.ssh/config
+
+      - name: Copy the stack and the production .env
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
+        run: |
+          scp -r deploy/docker-compose.prod.yml deploy/Caddyfile deploy/backup "prod:$APP_DIR/"
+          # .env holds app config plus the image to run; readable only by the deploy user.
+          { printf '%s\n' "$PRODUCTION_ENV"; printf 'APP_IMAGE=%s\nIMAGE_TAG=%s\n' "$IMAGE" "$GITHUB_SHA"; } |
+            ssh prod "umask 077 && cat > $APP_DIR/.env"
+
+      - name: Pull and restart
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_USER: ${{ github.actor }}
+        run: |
+          # The job token is short-lived; it is only needed for this pull.
+          printf '%s' "$GHCR_TOKEN" | ssh prod "docker login ghcr.io -u '$GHCR_USER' --password-stdin"
+          ssh prod "set -e
+            cd $APP_DIR
+            docker compose -f docker-compose.prod.yml pull app
+            docker logout ghcr.io
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
+            docker compose -f docker-compose.prod.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+            docker image prune -f"
+
+      - name: Wait for /api/health
+        if: steps.ready.outputs.ok == 'true'
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        run: |
+          for _ in $(seq 1 30); do
+            if curl -fsS --max-time 5 "$PRODUCTION_URL/api/health"; then echo; echo "Healthy."; exit 0; fi
+            sleep 10
+          done
+          echo "::error::The app did not become healthy. Recent logs:"
+          ssh prod "cd $APP_DIR && docker compose -f docker-compose.prod.yml ps && docker compose -f docker-compose.prod.yml logs --tail=80 app"
+          exit 1
