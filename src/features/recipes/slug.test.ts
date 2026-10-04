@@ -25,4 +25,8 @@ describe("uniqueSlug", () => {
     expect(await uniqueSlug("Soup", async (s) => taken.has(s))).toBe("soup-3");
     expect(await uniqueSlug("Stew", async (s) => taken.has(s))).toBe("stew");
   });
+
+  it("never returns a reserved route name", async () => {
+    expect(await uniqueSlug("New!", async () => false)).toBe("new-2");
+  });
 });

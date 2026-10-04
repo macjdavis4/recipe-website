@@ -17,6 +17,13 @@ describe("recipeSchema", () => {
     expect(data.tags).toEqual(["vegan", "quick"]);
   });
 
+  it("title-cases the cuisine", () => {
+    expect(recipeSchema.parse({ ...valid, cuisine: " middle   eastern " }).cuisine).toBe(
+      "Middle Eastern",
+    );
+    expect(recipeSchema.parse({ ...valid, cuisine: "" }).cuisine).toBe("");
+  });
+
   it("requires at least one ingredient and one step", () => {
     const result = recipeSchema.safeParse({ ...valid, ingredients: [], steps: [] });
     expect(result.success).toBe(false);

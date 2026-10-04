@@ -71,7 +71,12 @@ export const recipeSchema = z.object({
     .min(1, "At least 1 serving")
     .max(LIMITS.servings, `At most ${LIMITS.servings} servings`),
   difficulty: z.enum(DIFFICULTIES, { error: "Choose a difficulty" }),
-  cuisine: optionalText(50, "Cuisine"),
+  // "middle  eastern" -> "Middle Eastern", so filters do not list case variants.
+  cuisine: optionalText(50, "Cuisine").transform((v) =>
+    v
+      .replace(/\s+/g, " ")
+      .replace(/(^|\s)(\p{L})/gu, (_, space, letter) => space + letter.toUpperCase()),
+  ),
   tags: z
     .array(tagSchema)
     .max(LIMITS.tags, `Use up to ${LIMITS.tags} tags`)

@@ -17,6 +17,7 @@ describe("singularize", () => {
     ["leaves", "leaf"],
     ["cookies", "cookie"],
     ["anchovies", "anchovy"],
+    ["lentils", "lentil"],
   ])("%s -> %s", (plural, single) => {
     expect(singularize(plural)).toBe(single);
   });

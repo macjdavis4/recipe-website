@@ -32,8 +32,6 @@ const INVARIANT = new Set([
   "series",
   "species",
   "grits",
-  "oats",
-  "lentils",
   "brussels",
 ]);
 
