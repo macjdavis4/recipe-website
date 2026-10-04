@@ -26,4 +26,36 @@ describe("deploy config", () => {
   it("keeps .env files out of the Docker build context", () => {
     expect(read(".dockerignore")).toMatch(/^\.env$/m);
   });
+
+  describe("docker-compose.prod.yml", () => {
+    const compose = read("deploy/docker-compose.prod.yml");
+    // Top-level service blocks: two-space indented keys under "services:".
+    const servicesBlock = compose.split(/^services:\n/m)[1].split(/^\S/m)[0];
+    const services = Object.fromEntries(
+      servicesBlock
+        .split(/^(?=  [a-z][\w-]*:\n)/m)
+        .filter((block) => block.trim())
+        .map((block) => [block.trim().split(":")[0], block]),
+    );
+
+    it("defines the app, database, proxy, and backup services", () => {
+      expect(Object.keys(services).sort()).toEqual(["app", "backup", "caddy", "db"]);
+    });
+
+    it.each(["app", "backup", "caddy", "db"])(
+      "%s restarts unless stopped and has a healthcheck",
+      (name) => {
+        expect(services[name]).toContain("restart: unless-stopped");
+        expect(services[name]).toContain("healthcheck:");
+      },
+    );
+
+    it("publishes ports only from Caddy, never Postgres", () => {
+      const withPorts = Object.entries(services).filter(([, block]) =>
+        /^\s+ports:/m.test(block as string),
+      );
+      expect(withPorts.map(([name]) => name)).toEqual(["caddy"]);
+      expect(compose).not.toMatch(/5432:5432/);
+    });
+  });
 });
