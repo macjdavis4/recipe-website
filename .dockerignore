@@ -1,0 +1,16 @@
+# Keep the build context small and free of secrets.
+.git
+.github
+node_modules
+.next
+coverage
+test-results
+playwright-report
+.env
+.env.*
+!.env.example
+public/uploads/*
+docs
+e2e
+playwright.config.ts
+*.tsbuildinfo
