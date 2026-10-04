@@ -6,7 +6,9 @@ import type { RecipeCardData } from "../queries";
 import { DIFFICULTY_LABELS } from "../schemas";
 import { RecipeImage } from "./recipe-image";
 
-export function RecipeCard({ recipe, priority }: { recipe: RecipeCardData; priority?: boolean }) {
+type CardProps = { recipe: RecipeCardData; priority?: boolean; children?: React.ReactNode };
+
+export function RecipeCard({ recipe, priority, children }: CardProps) {
   const total = recipe.prepMinutes + recipe.cookMinutes;
 
   return (
@@ -48,6 +50,7 @@ export function RecipeCard({ recipe, priority }: { recipe: RecipeCardData; prior
         {recipe.author.name && (
           <p className="text-sm text-muted-foreground">by {recipe.author.name}</p>
         )}
+        {children}
       </div>
     </article>
   );

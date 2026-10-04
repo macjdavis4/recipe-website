@@ -71,6 +71,12 @@ export async function listRecipes(filters: RecipeFilters) {
   };
 }
 
+/** Cards for the given ids, keyed by id (order is up to the caller). */
+export async function getRecipeCards(ids: string[]): Promise<Map<string, RecipeCardData>> {
+  const rows = await db.recipe.findMany({ where: { id: { in: ids } }, select: cardSelect });
+  return new Map(rows.map((row) => [row.id, toCard(row)]));
+}
+
 export async function getFilterOptions() {
   const [cuisines, tags] = await Promise.all([
     db.recipe.findMany({
