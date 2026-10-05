@@ -1,0 +1,13 @@
+# Runs the production stack locally over plain HTTP, for checking images,
+# healthchecks, and migrations before a deploy. In a folder laid out like
+# /opt/larder (this folder plus a .env with DOMAIN=":80"):
+#
+#   docker build -f deploy/Dockerfile -t larder-app:local .
+#   docker compose -f docker-compose.prod.yml -f docker-compose.local.yml up -d
+#   curl http://localhost:8080/api/health
+services:
+  app:
+    image: larder-app:local
+  caddy:
+    ports: !override
+      - "8080:80"
