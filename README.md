@@ -24,6 +24,7 @@ The project codename is **Larder**, which you will still see in internal names (
 - **Cooking assistant.** Streaming answers about techniques, swaps, timing, and food safety, plus "Ask about this recipe" on every recipe page.
 - **Cook from your pantry.** List what you have to see community recipes ranked by fewest missing ingredients, then ask AI for more ideas and save one as your own recipe.
 - **Accounts.** Email and password sign-up, with optional Google sign-in. Forgotten passwords are reset by an emailed one-hour link, which also signs out every older session.
+- **Admin area.** `/admin` shows site totals and lets the site owner find and delete any recipe or account (for spam and deletion requests). Only accounts in `ADMIN_EMAILS` with a verified email can open it; everyone else gets a 404.
 - **Privacy page.** `/privacy` explains what is collected, what is public, and how to have an account deleted.
 - **Built for phones.** Works at 360px wide with 44px tap targets, light and dark themes, and AA contrast.
 
@@ -87,6 +88,7 @@ All configuration comes from environment variables, validated at start-up by `sr
 | `EMAIL_PROVIDER`                                                                                     | No            | `resend` or `log`. Blank means Resend when `RESEND_API_KEY` is set, the server log in development, and off in production.    |
 | `RESEND_API_KEY`, `EMAIL_FROM`                                                                       | Production    | Resend key and sender address for password reset emails. Without them, password reset is off in production.                  |
 | `BACKUP_PING_URL`                                                                                    | No            | healthchecks.io ping URL. Each nightly backup reports start, success, or failure there.                                      |
+| `ADMIN_EMAILS`                                                                                       | No            | Comma-separated emails allowed into `/admin`. The account also needs a verified email (complete one password reset).         |
 | `SEED_PASSWORD`                                                                                      | No            | Password for demo users. Default `cookbook-demo`; required to seed in production.                                            |
 | `E2E_DATABASE_URL`                                                                                   | No            | Overrides the end-to-end database (defaults to `DATABASE_URL` renamed to `larder_test`).                                     |
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE`                                                                     | No            | Path to a preinstalled Chromium when `playwright install` cannot download one.                                               |
@@ -192,6 +194,7 @@ Uploads go through `/api/uploads`:
 
 - Login required, 5 MB maximum.
 - The type is detected from magic bytes (JPEG, PNG, WebP), never from the browser's MIME type.
+- Every photo is re-encoded with `sharp`: the EXIF orientation is applied, then all metadata (GPS location, camera, XMP) is dropped. Files that don't decode as real images are rejected.
 - Storage keys look like `recipes/<userId>/<uuid>.<ext>`, so a recipe can only use its author's own photos, and cleanup never touches another user's files.
 
 In production, photos go to Spaces and are served from its CDN. The demo seed's photos ship inside the image under `public/seed`.
@@ -228,7 +231,7 @@ To check the production image locally before deploying, run `deploy/docker-compo
 ## Future ideas
 
 - Save and favorite other cooks' recipes; ratings and comments.
-- Strip photo metadata (such as GPS) on upload, and clean up uploads from abandoned forms.
+- Clean up uploads from abandoned forms.
 - Postgres full-text search with ranking once there are many recipes.
 - Shopping list generated from one or more recipes, using the normalized ingredients.
 - Keep chat history per user, and stream pantry ideas as they arrive.

@@ -42,7 +42,7 @@ A community recipe sharing site with two AI features: a cooking Q&A assistant an
 - Commit after each completed step with a clear message, and open a pull request at the end of each phase.
 
 ## Data model
-- **User**: id, name, email (unique), passwordHash (nullable for OAuth users), passwordChangedAt (sessions that started earlier are signed out), image, createdAt. Plus the Auth.js Account and VerificationToken tables.
+- **User**: id, name, email (unique), emailVerified (set when a password reset link is used, proving the inbox; required for admin access), passwordHash (nullable for OAuth users), passwordChangedAt (sessions that started earlier are signed out), image, createdAt. Plus the Auth.js Account and VerificationToken tables.
 - **PasswordResetToken**: id, userId, tokenHash (SHA-256 of the emailed token; the raw token is never stored), expiresAt (1 hour), createdAt. Single use.
 - **Recipe**: id, slug (unique), title, description, imageUrl, prepMinutes, cookMinutes, servings, difficulty (EASY | MEDIUM | HARD), cuisine, authorId, createdAt, updatedAt
 - **Ingredient**: id, recipeId, position, quantity (string, allows "1/2"), unit, name, normalizedName (lowercased, trimmed, singularized for matching), note
@@ -52,7 +52,7 @@ A community recipe sharing site with two AI features: a cooking Q&A assistant an
 - Deleting a Recipe cascades to its Ingredients, Steps, and RecipeTags.
 
 ## Non-negotiable rules
-1. **Authorization lives on the server.** Every create, update, and delete checks the session. Every update and delete also verifies `recipe.authorId === session.user.id` and returns 403 otherwise. Hiding buttons in the UI is a convenience, not security. Put this check in one helper (`assertRecipeOwner`) and use it everywhere.
+1. **Authorization lives on the server.** Every create, update, and delete checks the session. Every update and delete also verifies `recipe.authorId === session.user.id` and returns 403 otherwise. Hiding buttons in the UI is a convenience, not security. Put this check in one helper (`assertRecipeOwner`) and use it everywhere. The one exception is the admin area (`src/features/admin`): accounts listed in `ADMIN_EMAILS` with a verified email may delete any recipe or account, and every admin page and action checks `requireAdminPage`/`assertAdmin` on the server. Editing stays owner-only. Non-admins get a 404 at `/admin`.
 2. **Reads are public.** Recipe list, recipe detail, search, and profile pages work without login.
 3. **Secrets never reach the client.** The AI key and storage tokens are only read in server code. Never prefix them with NEXT_PUBLIC_.
 4. **Validate everything with Zod** on the server, including AI responses before rendering or saving them.
@@ -62,7 +62,7 @@ A community recipe sharing site with two AI features: a cooking Q&A assistant an
 8. **Accessible.** Semantic HTML, labeled form fields, visible focus states, alt text on images, AA color contrast in both themes.
 
 ## Conventions
-- Feature folders under `src/features/` (recipes, auth, ai, pantry, profile), shared UI in `src/components/ui`
+- Feature folders under `src/features/` (recipes, auth, ai, pantry, admin), shared UI in `src/components/ui`
 - Server Actions for form mutations; route handlers only for streaming AI and uploads
 - Use `next/image` for all recipe photos
 - Keep components small; no file over about 250 lines

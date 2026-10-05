@@ -6,6 +6,7 @@ import { createSpacesStorage } from "./spaces";
 
 export { imageKey, type ImageContentType } from "./adapter";
 export { detectImageType } from "./file-signature";
+export { stripImageMetadata } from "./strip-metadata";
 
 export const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 

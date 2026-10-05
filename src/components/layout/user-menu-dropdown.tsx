@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useTransition } from "react";
-import { BookOpen, LogOut, Plus } from "lucide-react";
+import { BookOpen, LogOut, Plus, ShieldCheck } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,7 +15,13 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { logoutAction } from "@/features/auth/actions";
 
-type Props = { id: string; name: string | null; email: string | null; image: string | null };
+type Props = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+  isAdmin?: boolean;
+};
 
 function initials(name: string | null, email: string | null): string {
   const source = name?.trim() || email || "?";
@@ -25,7 +31,7 @@ function initials(name: string | null, email: string | null): string {
   ).toUpperCase();
 }
 
-export function UserMenuDropdown({ id, name, email, image }: Props) {
+export function UserMenuDropdown({ id, name, email, image, isAdmin = false }: Props) {
   const [pending, startTransition] = useTransition();
 
   return (
@@ -60,6 +66,14 @@ export function UserMenuDropdown({ id, name, email, image }: Props) {
             My recipes
           </Link>
         </DropdownMenuItem>
+        {isAdmin && (
+          <DropdownMenuItem asChild className="min-h-11">
+            <Link href="/admin">
+              <ShieldCheck aria-hidden="true" />
+              Admin
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           className="min-h-11"

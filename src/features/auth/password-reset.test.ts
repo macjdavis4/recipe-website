@@ -7,6 +7,7 @@ const state = vi.hoisted(() => ({
   users: [] as User[],
   tokens: [] as Token[],
   changedAt: new Map<string, Date>(),
+  verifiedAt: new Map<string, Date>(),
   sent: [] as { to: string; subject: string; text: string; html: string }[],
   emailOn: true,
   cleared: [] as string[],
@@ -30,11 +31,12 @@ vi.mock("@/lib/db", () => ({
         data,
       }: {
         where: { id: string };
-        data: Partial<User> & { passwordChangedAt: Date };
+        data: Partial<User> & { passwordChangedAt: Date; emailVerified: Date };
       }) => {
         const user = state.users.find((u) => u.id === where.id)!;
         user.passwordHash = data.passwordHash ?? null;
         state.changedAt.set(user.id, data.passwordChangedAt);
+        state.verifiedAt.set(user.id, data.emailVerified);
       },
     },
     passwordResetToken: {
@@ -74,6 +76,7 @@ beforeEach(() => {
   state.users = [{ id: "u1", name: "Ada", email: "ada@example.com", passwordHash: "hashed:old" }];
   state.tokens = [];
   state.changedAt.clear();
+  state.verifiedAt.clear();
   state.sent = [];
   state.emailOn = true;
   state.cleared = [];
@@ -129,6 +132,8 @@ describe("resetPassword", () => {
     expect(await resetPassword(await issueToken(), "new password")).toBe(true);
     expect(state.users[0].passwordHash).toBe("hashed:new password");
     expect(state.changedAt.get("u1")).toBeInstanceOf(Date);
+    // Following the emailed link proves the inbox, which admin access relies on.
+    expect(state.verifiedAt.get("u1")).toBeInstanceOf(Date);
     expect(state.cleared).toEqual(["ada@example.com"]);
     expect(state.tokens).toHaveLength(0);
   });

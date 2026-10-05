@@ -8,6 +8,7 @@ const PROTECTED_PATHS = [
   /^\/recipes\/new\/?$/,
   /^\/recipes\/[^/]+\/edit\/?$/,
   /^\/assistant(\/|$)/,
+  /^\/admin(\/|$)/,
 ];
 
 export function isProtectedPath(pathname: string): boolean {
