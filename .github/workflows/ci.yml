@@ -70,7 +70,7 @@ jobs:
           retention-days: 7
 
   docker:
-    name: Docker images build
+    name: Docker image build
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
@@ -82,7 +82,3 @@ jobs:
           push: false
           cache-from: type=gha
           cache-to: type=gha,mode=max
-      - uses: docker/build-push-action@v6
-        with:
-          context: deploy/backup
-          push: false

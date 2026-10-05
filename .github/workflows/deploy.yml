@@ -1,5 +1,6 @@
 # Deploys main to the Droplet: verify, build and push the image to GHCR,
 # then pull and restart over SSH. Production deploys happen only here.
+# Setup and the full list of secrets: docs/DEPLOYMENT.md.
 #
 # Repository secrets:
 #   DEPLOY_HOST          Droplet IP or hostname
@@ -109,15 +110,28 @@ jobs:
           printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/id_deploy
           printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 600 ~/.ssh/id_deploy ~/.ssh/known_hosts
-          printf 'Host prod\n  HostName %s\n  User %s\n  IdentityFile ~/.ssh/id_deploy\n  StrictHostKeyChecking yes\n' \
-            "$DEPLOY_HOST" "$DEPLOY_USER" > ~/.ssh/config
+          # One multiplexed connection for the whole job: the Droplet's
+          # `ufw limit OpenSSH` blocks a 6th new connection within 30 seconds.
+          cat > ~/.ssh/config <<CONFIG
+          Host prod
+            HostName $DEPLOY_HOST
+            User $DEPLOY_USER
+            IdentityFile ~/.ssh/id_deploy
+            IdentitiesOnly yes
+            StrictHostKeyChecking yes
+            ControlMaster auto
+            ControlPath ~/.ssh/cm-%C
+            ControlPersist 10m
+            ServerAliveInterval 30
+          CONFIG
+          ssh prod true
 
       - name: Copy the stack and the production .env
         if: steps.ready.outputs.ok == 'true'
         env:
           PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
         run: |
-          scp -r deploy/docker-compose.prod.yml deploy/Caddyfile deploy/backup "prod:$APP_DIR/"
+          scp -r deploy/docker-compose.prod.yml deploy/server-setup.sh deploy/verify-server.sh deploy/nginx "prod:$APP_DIR/"
           # .env holds app config plus the image to run; readable only by the deploy user.
           { printf '%s\n' "$PRODUCTION_ENV"; printf 'APP_IMAGE=%s\nIMAGE_TAG=%s\n' "$IMAGE" "$GITHUB_SHA"; } |
             ssh prod "umask 077 && cat > $APP_DIR/.env"
@@ -134,8 +148,7 @@ jobs:
             cd $APP_DIR
             docker compose -f docker-compose.prod.yml pull app
             docker logout ghcr.io
-            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
-            docker compose -f docker-compose.prod.yml exec -T caddy caddy reload --config /etc/caddy/Caddyfile
+            docker compose -f docker-compose.prod.yml up -d --remove-orphans
             docker image prune -f"
 
       - name: Wait for /api/health

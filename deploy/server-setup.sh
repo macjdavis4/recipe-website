@@ -1,83 +1,106 @@
 #!/usr/bin/env bash
-# One-time setup for a fresh Ubuntu 24.04 DigitalOcean Droplet. Run as root:
+# One-time setup of an existing Droplet (Ubuntu 24.04 with Docker, nginx,
+# Certbot, ufw, and key-only SSH already installed) for this app.
+# Run as your sudo user from the folder holding this script and
+# nginx/larder.conf.template:
 #
-#   DEPLOY_PUBLIC_KEY="ssh-ed25519 AAAA... github-actions" bash server-setup.sh
+#   sudo DOMAIN=recipes.example.com CERTBOT_EMAIL=you@example.com \
+#        DEPLOY_PUBLIC_KEY="$(cat larder-deploy.pub)" bash server-setup.sh
 #
-# DEPLOY_PUBLIC_KEY is the public half of the key GitHub Actions uses to deploy
-# (its private half goes in the DEPLOY_SSH_KEY secret). Safe to re-run.
-set -euo pipefail
+# It creates a restricted `deploy` user for GitHub Actions, allows it in
+# sshd's AllowUsers, creates /opt/larder, installs the nginx site, and gets an
+# HTTPS certificate. Safe to re-run.
+set -Eeuo pipefail
+trap 'echo "[ERROR] line $LINENO: $BASH_COMMAND" >&2' ERR
 
-[ "$(id -u)" -eq 0 ] || { echo "Run as root." >&2; exit 1; }
-: "${DEPLOY_PUBLIC_KEY:?Set DEPLOY_PUBLIC_KEY to the public half of the deploy key}"
+: "${DOMAIN:?Set DOMAIN, e.g. DOMAIN=recipes.example.com}"
+: "${CERTBOT_EMAIL:?Set CERTBOT_EMAIL for certificate expiry notices}"
+: "${DEPLOY_PUBLIC_KEY:?Set DEPLOY_PUBLIC_KEY to the public half of the GitHub Actions deploy key}"
+DEPLOY_USER="${DEPLOY_USER:-deploy}"
 APP_DIR=/opt/larder
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+TEMPLATE="$HERE/nginx/larder.conf.template"
+SITE=/etc/nginx/sites-available/larder.conf
 
-echo "==> Updating packages"
-export DEBIAN_FRONTEND=noninteractive
-apt-get update -y
-apt-get upgrade -y
-apt-get install -y ca-certificates curl gnupg ufw unattended-upgrades fail2ban
+step() { echo -e "\n==> $*"; }
+die() { echo "[FAIL] $*" >&2; exit 1; }
 
-echo "==> Installing Docker Engine and the compose plugin"
-if ! command -v docker > /dev/null; then
-  install -m 0755 -d /etc/apt/keyrings
-  curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
-  chmod a+r /etc/apt/keyrings/docker.asc
-  . /etc/os-release
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/ubuntu ${VERSION_CODENAME} stable" \
-    > /etc/apt/sources.list.d/docker.list
-  apt-get update -y
-  apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
+[[ $EUID -eq 0 ]] || die "Run with sudo."
+[[ -f $TEMPLATE ]] || die "Missing $TEMPLATE. Copy the whole deploy/ folder to the server."
+[[ $DEPLOY_PUBLIC_KEY == ssh-* ]] || die "DEPLOY_PUBLIC_KEY does not look like an SSH public key."
+
+step "Checking prerequisites"
+for cmd in docker nginx certbot ufw sshd dig curl; do
+  command -v "$cmd" > /dev/null || die "$cmd is not installed."
+done
+docker compose version > /dev/null 2>&1 || die "The docker compose plugin is not installed."
+systemctl is-active --quiet docker || die "Docker is not running."
+systemctl is-active --quiet nginx || die "nginx is not running."
+echo "Docker, compose, nginx, Certbot, and ufw are present."
+
+step "Creating the $DEPLOY_USER user (no sudo, docker group only)"
+if ! id "$DEPLOY_USER" > /dev/null 2>&1; then
+  adduser --disabled-password --gecos "GitHub Actions deploys" "$DEPLOY_USER"
+fi
+usermod -aG docker "$DEPLOY_USER"
+DEPLOY_HOME="$(getent passwd "$DEPLOY_USER" | cut -d: -f6)"
+install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$DEPLOY_HOME/.ssh"
+# The key may only run commands: no forwarding, no interactive terminal.
+KEY_LINE="no-port-forwarding,no-agent-forwarding,no-X11-forwarding,no-pty $DEPLOY_PUBLIC_KEY"
+touch "$DEPLOY_HOME/.ssh/authorized_keys"
+grep -qxF "$KEY_LINE" "$DEPLOY_HOME/.ssh/authorized_keys" || echo "$KEY_LINE" >> "$DEPLOY_HOME/.ssh/authorized_keys"
+chown "$DEPLOY_USER:$DEPLOY_USER" "$DEPLOY_HOME/.ssh/authorized_keys"
+chmod 600 "$DEPLOY_HOME/.ssh/authorized_keys"
+
+step "Allowing $DEPLOY_USER through sshd's AllowUsers"
+mapfile -t ALLOW_FILES < <(grep -lE '^\s*AllowUsers' /etc/ssh/sshd_config /etc/ssh/sshd_config.d/*.conf 2> /dev/null || true)
+if [[ ${#ALLOW_FILES[@]} -eq 0 ]]; then
+  echo "No AllowUsers rule found; nothing to change."
+else
+  for file in "${ALLOW_FILES[@]}"; do
+    if grep -qE "^\s*AllowUsers\b.*\b${DEPLOY_USER}\b" "$file"; then
+      echo "$file already allows $DEPLOY_USER."
+      continue
+    fi
+    cp -p "$file" "$file.bak-larder"
+    sed -i -E "s/^(\s*AllowUsers\b.*)$/\1 ${DEPLOY_USER}/" "$file"
+    if sshd -t; then
+      echo "Added $DEPLOY_USER to AllowUsers in $file."
+    else
+      mv "$file.bak-larder" "$file"
+      die "sshd rejected the change; restored $file."
+    fi
+  done
+  systemctl reload ssh || systemctl reload sshd
 fi
 
-echo "==> Rotating container logs"
-mkdir -p /etc/docker
-cat > /etc/docker/daemon.json <<'JSON'
-{ "log-driver": "json-file", "log-opts": { "max-size": "10m", "max-file": "5" } }
-JSON
-systemctl enable --now docker
-systemctl restart docker
+step "Creating $APP_DIR"
+install -d -m 750 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$APP_DIR"
 
-echo "==> Creating the deploy user"
-if ! id deploy > /dev/null 2>&1; then
-  adduser --disabled-password --gecos "" deploy
+step "Installing the nginx site for $DOMAIN"
+if [[ -f $SITE ]] && grep -q "managed by Certbot" "$SITE" && [[ ${FORCE_NGINX:-0} != 1 ]]; then
+  echo "$SITE already has Certbot's HTTPS settings; leaving it alone (FORCE_NGINX=1 to replace)."
+else
+  sed "s/__DOMAIN__/${DOMAIN}/g" "$TEMPLATE" > "$SITE"
 fi
-usermod -aG docker deploy
-install -d -m 700 -o deploy -g deploy /home/deploy/.ssh
-grep -qxF "$DEPLOY_PUBLIC_KEY" /home/deploy/.ssh/authorized_keys 2> /dev/null ||
-  echo "$DEPLOY_PUBLIC_KEY" >> /home/deploy/.ssh/authorized_keys
-chown deploy:deploy /home/deploy/.ssh/authorized_keys
-chmod 600 /home/deploy/.ssh/authorized_keys
-install -d -m 750 -o deploy -g deploy "$APP_DIR"
+ln -sfn "$SITE" /etc/nginx/sites-enabled/larder.conf
+nginx -t
+systemctl reload nginx
 
-echo "==> Hardening SSH (keys only)"
-cat > /etc/ssh/sshd_config.d/99-larder.conf <<'SSH'
-PasswordAuthentication no
-KbdInteractiveAuthentication no
-PermitRootLogin prohibit-password
-SSH
-systemctl reload ssh || systemctl reload sshd
-
-echo "==> Firewall: SSH, HTTP, HTTPS only"
-ufw default deny incoming
-ufw default allow outgoing
-ufw allow OpenSSH
-ufw allow 80/tcp
-ufw allow 443/tcp
-ufw allow 443/udp
-ufw --force enable
-
-echo "==> Swap (2 GB) for small Droplets"
-if ! swapon --show | grep -q '^/swapfile'; then
-  fallocate -l 2G /swapfile
-  chmod 600 /swapfile
-  mkswap /swapfile
-  swapon /swapfile
-  grep -q '^/swapfile' /etc/fstab || echo '/swapfile none swap sw 0 0' >> /etc/fstab
+step "Checking that DNS for $DOMAIN points at this Droplet"
+PUBLIC_IP="$(curl -fsS --max-time 3 http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address || true)"
+DNS_IPS="$(dig +short A "$DOMAIN" | tr '\n' ' ')"
+if [[ -z $PUBLIC_IP || " $DNS_IPS " != *" $PUBLIC_IP "* ]]; then
+  echo "[WARN] $DOMAIN resolves to '${DNS_IPS:-nothing}', but this Droplet is ${PUBLIC_IP:-unknown}."
+  echo "       Fix the A record, wait for it to update, then re-run this script for HTTPS."
+  exit 0
 fi
+echo "$DOMAIN -> $PUBLIC_IP"
 
-echo "==> Automatic security updates"
-dpkg-reconfigure -f noninteractive unattended-upgrades
+step "Getting an HTTPS certificate"
+certbot --nginx -d "$DOMAIN" --redirect --agree-tos -m "$CERTBOT_EMAIL" -n --keep-until-expiring
+nginx -t
+systemctl reload nginx
+systemctl is-active --quiet certbot.timer && echo "Automatic renewal is on (certbot.timer)."
 
-echo
-echo "Done. Next: point your domain's A record at this Droplet, add the GitHub"
-echo "Actions secrets (see README), and merge to main to deploy into $APP_DIR."
+echo -e "\nDone. Next: add the GitHub secrets (docs/DEPLOYMENT.md), push to main, then run verify-server.sh."
