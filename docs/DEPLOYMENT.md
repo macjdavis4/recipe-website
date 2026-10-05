@@ -35,7 +35,7 @@ git push to main ──▶ GitHub Actions: checks, build image, push to GHCR,
 - A domain or subdomain you can point at the Droplet, e.g. `recipes.example.com`.
 - Your Anthropic API key.
 - Two Spaces buckets and an access key (step 1).
-- Free accounts at Resend (email), healthchecks.io (backup alerts), and UptimeRobot (uptime alerts) (step 2b).
+- A free Resend account for password reset emails (step 2b). healthchecks.io and UptimeRobot alerts are optional.
 - Admin access to the GitHub repository (for secrets).
 - About 30 minutes.
 
@@ -78,7 +78,7 @@ Wait until it does before step 3. The setup script checks this too.
 
 ## Step 2b. Email, alerts, and a contact address
 
-**Already live?** Do this section, add the three new values to `PRODUCTION_ENV` (step 6), then re-run **Actions > Deploy**.
+**Already live?** Do this section, add the new values to `PRODUCTION_ENV` (step 6), then re-run **Actions > Deploy**. Only email is required; the two alert services are optional extras.
 
 ### Email for password resets (Resend)
 
@@ -104,16 +104,16 @@ The privacy page and the "reset unavailable" message point people to `hello@<you
 3. Add a **custom address** `hello` that forwards to your personal email, and confirm the verification email.
 4. Send a test message to `hello@recipes.example.com` from another account.
 
-### Backup alerts (healthchecks.io)
+### Optional: backup alerts (healthchecks.io)
 
-The backup job reports each run. If a night is missed or fails, you get an email.
+Skip this if you'd rather check backups yourself with `verify-server.sh`, which fails when the latest dump is more than 36 hours old. With it, the backup job reports each run. If a night is missed or fails, you get an email.
 
 1. Sign up at [healthchecks.io](https://healthchecks.io) and **Add Check**. Name it "Cookbook backup".
 2. Set **Period** to `1 day` and **Grace time** to `3 hours`. The backup runs at 03:15 UTC.
 3. Copy the check's **ping URL** (`https://hc-ping.com/...`). For step 6, it's `BACKUP_PING_URL`.
 4. Email alerts go to your account's address by default (**Integrations** shows them).
 
-### Uptime alerts (UptimeRobot)
+### Optional: uptime alerts (UptimeRobot)
 
 No code involved. At [uptimerobot.com](https://uptimerobot.com), add a monitor:
 
@@ -222,7 +222,7 @@ SPACES_BUCKET="larder-images"
 SPACES_CDN_URL="https://larder-images.nyc3.cdn.digitaloceanspaces.com"
 SPACES_BACKUP_BUCKET="larder-backups"
 BACKUP_RETENTION_DAYS=14
-BACKUP_PING_URL="https://hc-ping.com/<your check's id>"
+# Optional: BACKUP_PING_URL="https://hc-ping.com/<your check's id>"
 RESEND_API_KEY="<re_... key>"
 EMAIL_FROM="The Cushman Davis Cookbook <no-reply@recipes.example.com>"
 # Optional Google sign-in (redirect URI: https://recipes.example.com/api/auth/callback/google)
@@ -300,7 +300,7 @@ Now **every** line should be `PASS`, with `Result: N passed, 0 warnings, 0 faile
 
 - `/opt/larder/.env` exists with mode 600 and every required setting (values are never printed), including a strong, URL-safe `POSTGRES_PASSWORD` and a backup bucket separate from the photos bucket;
 - `STORAGE_DRIVER is spaces` and `AUTH_URL is https://recipes.example.com`;
-- email is configured for password resets, and `BACKUP_PING_URL` is set (a `WARN` if not);
+- email is configured for password resets;
 - the app, db, and backup containers are healthy and restart unless stopped;
 - the app listens on loopback only; Postgres publishes no ports and nothing listens on 5432;
 - the database answers, its data is on the `larder_pgdata` volume, and the migrations are applied;
@@ -315,7 +315,7 @@ Then try it in a browser:
 3. Open **Assistant** and ask a question. The answer should stream in word by word.
 4. Try **Pantry** with a few ingredients.
 5. Log out, choose **Forgot your password?**, and reset your password from the email. The email should arrive within a minute (check spam the first time).
-6. In healthchecks.io, the check should turn green after `dc exec backup backup.sh`.
+6. If you set up healthchecks.io, the check should turn green after `dc exec backup backup.sh`.
 
 Production starts with an empty database. The demo seed is for development only.
 

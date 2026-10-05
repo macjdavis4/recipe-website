@@ -89,7 +89,6 @@ if [[ -f $ENV_FILE ]]; then
   (( $(env_value POSTGRES_PASSWORD | wc -c) > 24 )) && pass "POSTGRES_PASSWORD is 24+ characters" || fail "POSTGRES_PASSWORD is shorter than 24 characters"
   [[ "$(env_value POSTGRES_PASSWORD)" =~ ^[A-Za-z0-9]+$ ]] && pass "POSTGRES_PASSWORD is URL-safe" || fail "POSTGRES_PASSWORD should be letters and digits only (openssl rand -hex 24)"
   [[ -n "$(env_value RESEND_API_KEY)" && -n "$(env_value EMAIL_FROM)" ]] && pass "Email is configured (password reset works)" || fail "RESEND_API_KEY and EMAIL_FROM are needed for password reset emails"
-  [[ -n "$(env_value BACKUP_PING_URL)" ]] && pass "BACKUP_PING_URL is set (missed backups email you)" || warn "BACKUP_PING_URL is not set; nobody hears about a failed backup"
   if [[ -n "$(env_value SPACES_BACKUP_BUCKET)" && "$(env_value SPACES_BACKUP_BUCKET)" == "$(env_value SPACES_BUCKET)" ]]; then
     fail "SPACES_BACKUP_BUCKET must be a separate private bucket, not the public image bucket"
   fi
