@@ -23,7 +23,8 @@ The project codename is **Larder**, which you will still see in internal names (
 - **Share and edit your own recipes.** Photo upload, ingredients and steps you can reorder, tags, and unsaved drafts that survive a reload. Only the author can edit or delete, and the server checks this on every change.
 - **Cooking assistant.** Streaming answers about techniques, swaps, timing, and food safety, plus "Ask about this recipe" on every recipe page.
 - **Cook from your pantry.** List what you have to see community recipes ranked by fewest missing ingredients, then ask AI for more ideas and save one as your own recipe.
-- **Accounts.** Email and password sign-up, with optional Google sign-in.
+- **Accounts.** Email and password sign-up, with optional Google sign-in. Forgotten passwords are reset by an emailed one-hour link, which also signs out every older session.
+- **Privacy page.** `/privacy` explains what is collected, what is public, and how to have an account deleted.
 - **Built for phones.** Works at 360px wide with 44px tap targets, light and dark themes, and AA contrast.
 
 ## Tech stack
@@ -83,6 +84,9 @@ All configuration comes from environment variables, validated at start-up by `sr
 | `SPACES_KEY`, `SPACES_SECRET`, `SPACES_REGION`, `SPACES_ENDPOINT`, `SPACES_BUCKET`, `SPACES_CDN_URL` | With `spaces` | DigitalOcean Spaces credentials, bucket, and CDN URL for recipe photos.                                                      |
 | `SPACES_BACKUP_BUCKET`                                                                               | Production    | Private Spaces bucket that receives a copy of every nightly database dump.                                                   |
 | `BACKUP_RETENTION_DAYS`                                                                              | No            | Days of dumps to keep on the Droplet and in Spaces. Default 14.                                                              |
+| `EMAIL_PROVIDER`                                                                                     | No            | `resend` or `log`. Blank means Resend when `RESEND_API_KEY` is set, the server log in development, and off in production.    |
+| `RESEND_API_KEY`, `EMAIL_FROM`                                                                       | Production    | Resend key and sender address for password reset emails. Without them, password reset is off in production.                  |
+| `BACKUP_PING_URL`                                                                                    | No            | healthchecks.io ping URL. Each nightly backup reports start, success, or failure there.                                      |
 | `SEED_PASSWORD`                                                                                      | No            | Password for demo users. Default `cookbook-demo`; required to seed in production.                                            |
 | `E2E_DATABASE_URL`                                                                                   | No            | Overrides the end-to-end database (defaults to `DATABASE_URL` renamed to `larder_test`).                                     |
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE`                                                                     | No            | Path to a preinstalled Chromium when `playwright install` cannot download one.                                               |
@@ -231,7 +235,8 @@ To check the production image locally before deploying, run `deploy/docker-compo
 - An atomic rate-limit check (a transaction or advisory lock) for bursts of parallel AI requests.
 - A smaller production image, by running migrations from a separate one-off container.
 - A strict nonce-based CSP if Next.js makes that compatible with static rendering.
-- Uptime monitoring and error reporting.
+- Error reporting (uptime is watched by an external monitor; see docs/DEPLOYMENT.md).
+- Self-service account deletion (today it's by email, as the privacy page says).
 - A way to load demo content into production.
 
 ## Working on this project

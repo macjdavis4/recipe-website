@@ -20,6 +20,7 @@ Browser ──HTTPS──▶ nginx on the Droplet (ports 80/443, Certbot certifi
                                              └─▶ private Spaces bucket (off-site copy)
 
 Photos ──▶ DigitalOcean Spaces + CDN       AI ──▶ Anthropic API (server side only)
+Password reset emails ──▶ Resend           Backup alerts ──▶ healthchecks.io
 
 git push to main ──▶ GitHub Actions: checks, build image, push to GHCR,
                      SSH as `deploy`, pull, restart, health check
@@ -34,6 +35,7 @@ git push to main ──▶ GitHub Actions: checks, build image, push to GHCR,
 - A domain or subdomain you can point at the Droplet, e.g. `recipes.example.com`.
 - Your Anthropic API key.
 - Two Spaces buckets and an access key (step 1).
+- Free accounts at Resend (email), healthchecks.io (backup alerts), and UptimeRobot (uptime alerts) (step 2b).
 - Admin access to the GitHub repository (for secrets).
 - About 30 minutes.
 
@@ -73,6 +75,51 @@ dig +short recipes.example.com
 ```
 
 Wait until it does before step 3. The setup script checks this too.
+
+## Step 2b. Email, alerts, and a contact address
+
+**Already live?** Do this section, add the three new values to `PRODUCTION_ENV` (step 6), then re-run **Actions > Deploy**.
+
+### Email for password resets (Resend)
+
+Without this, the "Forgot your password?" page says reset is unavailable, and `verify-server.sh` reports a `FAIL`.
+
+1. Sign up at [resend.com](https://resend.com). Under **Domains > Add domain**, enter `recipes.example.com`.
+2. Resend lists DNS records (a DKIM `TXT` record, plus `MX` and `TXT` records on a `send` subdomain). Add **exactly those records** at your DNS provider. At Cloudflare, set each to **DNS only**. Then click **Verify DNS records** in Resend; it can take a few minutes.
+   - Your existing root `v=spf1 -all` and `_dmarc` records can stay. Resend sends from the `send` subdomain and signs as your domain, so DMARC passes.
+3. Under **API Keys > Create API key**, choose **Sending access** for this domain only. Copy the key; it starts with `re_`.
+4. For step 6, note:
+
+   | Setting | Value |
+   | --- | --- |
+   | `RESEND_API_KEY` | the `re_...` key |
+   | `EMAIL_FROM` | `The Cushman Cookbook <no-reply@recipes.example.com>` |
+
+### A contact address
+
+The privacy page and the "reset unavailable" message point people to `hello@<your domain>` (set in `src/lib/site.ts` as `CONTACT_EMAIL`). If your DNS is at Cloudflare, forward it to your own inbox for free:
+
+1. In Cloudflare, open the domain, then **Email > Email Routing**, and click **Get started** / **Enable**.
+2. Let it add its `MX` and `TXT` records. It replaces the root `v=spf1 -all` record with its own SPF record; that's expected. Keep the `_dmarc` record.
+3. Add a **custom address** `hello` that forwards to your personal email, and confirm the verification email.
+4. Send a test message to `hello@recipes.example.com` from another account.
+
+### Backup alerts (healthchecks.io)
+
+The backup job reports each run. If a night is missed or fails, you get an email.
+
+1. Sign up at [healthchecks.io](https://healthchecks.io) and **Add Check**. Name it "Cookbook backup".
+2. Set **Period** to `1 day` and **Grace time** to `3 hours`. The backup runs at 03:15 UTC.
+3. Copy the check's **ping URL** (`https://hc-ping.com/...`). For step 6, it's `BACKUP_PING_URL`.
+4. Email alerts go to your account's address by default (**Integrations** shows them).
+
+### Uptime alerts (UptimeRobot)
+
+No code involved. At [uptimerobot.com](https://uptimerobot.com), add a monitor:
+
+- Type **HTTP(s)**, or **Keyword** with keyword `"db":"ok"` to also catch a broken database.
+- URL `https://recipes.example.com/api/health`, every 5 minutes.
+- Alert contact: your email.
 
 ## Step 3. Set up the server
 
@@ -175,6 +222,9 @@ SPACES_BUCKET="larder-images"
 SPACES_CDN_URL="https://larder-images.nyc3.cdn.digitaloceanspaces.com"
 SPACES_BACKUP_BUCKET="larder-backups"
 BACKUP_RETENTION_DAYS=14
+BACKUP_PING_URL="https://hc-ping.com/<your check's id>"
+RESEND_API_KEY="<re_... key>"
+EMAIL_FROM="The Cushman Cookbook <no-reply@recipes.example.com>"
 # Optional Google sign-in (redirect URI: https://recipes.example.com/api/auth/callback/google)
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
@@ -250,6 +300,7 @@ Now **every** line should be `PASS`, with `Result: N passed, 0 warnings, 0 faile
 
 - `/opt/larder/.env` exists with mode 600 and every required setting (values are never printed), including a strong, URL-safe `POSTGRES_PASSWORD` and a backup bucket separate from the photos bucket;
 - `STORAGE_DRIVER is spaces` and `AUTH_URL is https://recipes.example.com`;
+- email is configured for password resets, and `BACKUP_PING_URL` is set (a `WARN` if not);
 - the app, db, and backup containers are healthy and restart unless stopped;
 - the app listens on loopback only; Postgres publishes no ports and nothing listens on 5432;
 - the database answers, its data is on the `larder_pgdata` volume, and the migrations are applied;
@@ -263,6 +314,8 @@ Then try it in a browser:
 2. Sign up, share a recipe **with a photo**, and confirm the photo loads (it comes from the Spaces CDN).
 3. Open **Assistant** and ask a question. The answer should stream in word by word.
 4. Try **Pantry** with a few ingredients.
+5. Log out, choose **Forgot your password?**, and reset your password from the email. The email should arrive within a minute (check spam the first time).
+6. In healthchecks.io, the check should turn green after `dc exec backup backup.sh`.
 
 Production starts with an empty database. The demo seed is for development only.
 
@@ -346,6 +399,8 @@ dc exec db sh -c 'psql -U "$POSTGRES_USER" "$POSTGRES_DB"'
 | Verify: `Spaces backup bucket check failed` | Check `SPACES_BACKUP_BUCKET`, `SPACES_ENDPOINT`, and that the access key has access to the backups bucket. Then `dc exec backup backup.sh --check`. |
 | Verify: `Bucket ... is public` | In the bucket's settings, set file listing to **Restricted** (and turn off the CDN). |
 | Verify: latest dump is too old | `dc logs backup` shows the nightly run's output. Run `dc exec backup backup.sh` to see the error directly. |
+| Password reset email never arrives | In Resend, check **Logs** and that the domain shows **Verified**. On the Droplet, `dc logs app \| grep -i "reset email"` shows send errors. |
+| healthchecks.io says the backup is late or down | `dc logs backup` shows the run's output. Run `dc exec backup backup.sh` to see it fail directly. |
 | Browser shows `502 Bad Gateway` | nginx is up but the app isn't. Check `dc ps` and `dc logs app`. |
 | Certbot failed during setup | DNS didn't point at the Droplet yet, or port 80 was blocked. Fix it, then re-run `server-setup.sh`. |
 | Photos fail to upload | Check the `SPACES_*` values and that the access key can write to the photos bucket. |

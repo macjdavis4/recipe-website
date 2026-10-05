@@ -10,6 +10,7 @@ A community recipe sharing site with two AI features: a cooking Q&A assistant an
 - Zod for all input validation (forms, server actions, route handlers, AI output)
 - react-hook-form with zodResolver for forms
 - Anthropic SDK (@anthropic-ai/sdk) behind an `AIProvider` interface in `src/lib/ai/`
+- Email (password reset) through Resend's HTTP API behind an `EmailSender` in `src/lib/email/`; the server log in development
 - Image storage behind a `StorageAdapter` interface: local disk (`/public/uploads`) in dev, DigitalOcean Spaces (S3-compatible, via @aws-sdk/client-s3) in production, chosen by `STORAGE_DRIVER`
 - Production: one DigitalOcean Droplet running the app, PostgreSQL 16, and a nightly backup job with Docker Compose behind the host's nginx (Certbot HTTPS). The Droplet has no DigitalOcean backups, so every dump is also copied to a private Spaces bucket. Deployed by GitHub Actions through GitHub Container Registry on every push to main
 - Vitest for unit tests, Playwright for end-to-end tests
@@ -35,13 +36,14 @@ A community recipe sharing site with two AI features: a cooking Q&A assistant an
 - This project is built in Claude Code on the web. Each session is a fresh Ubuntu VM with the repo cloned, and it can pause or be rebuilt between phases. Never rely on state outside the repo.
 - For local dev and tests, start Postgres with `docker compose up -d` (Docker is available). If Docker has trouble, fall back to `service postgresql start`.
 - Never commit secrets. Real values live in the cloud environment's variables (dev only) and in GitHub Actions secrets (production).
-- Never call the real AI API in tests. Use the mocked provider.
+- Never call the real AI API or send real email in tests. Use the mocked AI provider and the log email provider.
 - Do not attempt to SSH into or deploy to the Droplet from a session. Production deploys happen only through GitHub Actions after a merge to main.
 - If installing Playwright browsers fails because of network restrictions, say so and continue. Do not try workarounds.
 - Commit after each completed step with a clear message, and open a pull request at the end of each phase.
 
 ## Data model
-- **User**: id, name, email (unique), passwordHash (nullable for OAuth users), image, createdAt. Plus the Auth.js Account and VerificationToken tables.
+- **User**: id, name, email (unique), passwordHash (nullable for OAuth users), passwordChangedAt (sessions that started earlier are signed out), image, createdAt. Plus the Auth.js Account and VerificationToken tables.
+- **PasswordResetToken**: id, userId, tokenHash (SHA-256 of the emailed token; the raw token is never stored), expiresAt (1 hour), createdAt. Single use.
 - **Recipe**: id, slug (unique), title, description, imageUrl, prepMinutes, cookMinutes, servings, difficulty (EASY | MEDIUM | HARD), cuisine, authorId, createdAt, updatedAt
 - **Ingredient**: id, recipeId, position, quantity (string, allows "1/2"), unit, name, normalizedName (lowercased, trimmed, singularized for matching), note
 - **Step**: id, recipeId, position, text
