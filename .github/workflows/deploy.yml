@@ -1,5 +1,6 @@
 # Deploys main to the Droplet: verify, build and push the image to GHCR,
 # then pull and restart over SSH. Production deploys happen only here.
+# The stack on the Droplet is app + Postgres + nightly backups.
 # Setup and the full list of secrets: docs/DEPLOYMENT.md.
 #
 # Repository secrets:
@@ -131,7 +132,7 @@ jobs:
         env:
           PRODUCTION_ENV: ${{ secrets.PRODUCTION_ENV }}
         run: |
-          scp -r deploy/docker-compose.prod.yml deploy/server-setup.sh deploy/verify-server.sh deploy/nginx "prod:$APP_DIR/"
+          scp -r deploy/docker-compose.prod.yml deploy/server-setup.sh deploy/verify-server.sh deploy/nginx deploy/backup "prod:$APP_DIR/"
           # .env holds app config plus the image to run; readable only by the deploy user.
           { printf '%s\n' "$PRODUCTION_ENV"; printf 'APP_IMAGE=%s\nIMAGE_TAG=%s\n' "$IMAGE" "$GITHUB_SHA"; } |
             ssh prod "umask 077 && cat > $APP_DIR/.env"
@@ -148,7 +149,9 @@ jobs:
             cd $APP_DIR
             docker compose -f docker-compose.prod.yml pull app
             docker logout ghcr.io
-            docker compose -f docker-compose.prod.yml up -d --remove-orphans
+            # Dumps are written by root inside the backup container; keep them private.
+            install -d -m 700 backups
+            docker compose -f docker-compose.prod.yml up -d --build --remove-orphans
             docker image prune -f"
 
       - name: Wait for /api/health

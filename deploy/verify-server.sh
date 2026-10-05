@@ -5,15 +5,13 @@
 #
 #   sudo bash verify-server.sh recipes.example.com
 #
-# Before the first deploy, app checks report WARN ("not deployed yet"). To test
-# the database before then, add --ask-db and paste DATABASE_URL when prompted.
+# Before the first deploy, the settings, container, and backup checks report
+# WARN ("not deployed yet"). Run it again after the first deploy.
 # Exits non-zero if any check fails. Never prints secret values.
 set -uo pipefail
 
 DOMAIN="${1:-${DOMAIN:-}}"
-ASK_DB=false
-[[ "${2:-}" == "--ask-db" || "${1:-}" == "--ask-db" ]] && ASK_DB=true
-[[ -n $DOMAIN && $DOMAIN != --* ]] || { echo "Usage: sudo bash verify-server.sh <domain> [--ask-db]"; exit 2; }
+[[ -n $DOMAIN && $DOMAIN != --* ]] || { echo "Usage: sudo bash verify-server.sh <domain>"; exit 2; }
 [[ $EUID -eq 0 ]] || { echo "Run with sudo."; exit 2; }
 
 DEPLOY_USER="${DEPLOY_USER:-deploy}"
@@ -79,59 +77,75 @@ fi
 if systemctl is-active --quiet certbot.timer; then pass "Certificate auto-renewal timer is on"; else warn "certbot.timer is not active"; fi
 
 section "Production settings ($ENV_FILE)"
-DATABASE_URL_VALUE=""
 if [[ -f $ENV_FILE ]]; then
   [[ $(stat -c '%U %a' "$ENV_FILE") == "$DEPLOY_USER 600" ]] && pass ".env belongs to $DEPLOY_USER with mode 600" || fail ".env should be owned by $DEPLOY_USER with mode 600"
-  for key in DATABASE_URL AUTH_SECRET AUTH_URL STORAGE_DRIVER SPACES_KEY SPACES_SECRET SPACES_BUCKET SPACES_CDN_URL SPACES_ENDPOINT SPACES_REGION APP_IMAGE IMAGE_TAG; do
+  for key in POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB AUTH_SECRET AUTH_URL STORAGE_DRIVER SPACES_KEY SPACES_SECRET SPACES_BUCKET SPACES_CDN_URL SPACES_ENDPOINT SPACES_REGION SPACES_BACKUP_BUCKET APP_IMAGE IMAGE_TAG; do
     [[ -n "$(env_value "$key")" ]] && pass "$key is set" || fail "$key is missing or empty"
   done
   if [[ -n "$(env_value ANTHROPIC_API_KEY)" || "$(env_value AI_PROVIDER)" == mock ]]; then pass "AI is configured"; else fail "ANTHROPIC_API_KEY is missing"; fi
   [[ "$(env_value STORAGE_DRIVER)" == spaces ]] && pass "STORAGE_DRIVER is spaces (container stays stateless)" || fail "STORAGE_DRIVER must be spaces in production"
   [[ "$(env_value AUTH_URL)" == "https://$DOMAIN" ]] && pass "AUTH_URL is https://$DOMAIN" || fail "AUTH_URL should be https://$DOMAIN"
   (( $(env_value AUTH_SECRET | wc -c) > 32 )) && pass "AUTH_SECRET is 32+ characters" || fail "AUTH_SECRET is shorter than 32 characters"
-  DATABASE_URL_VALUE="$(env_value DATABASE_URL)"
-elif $ASK_DB && [[ -t 0 ]]; then
-  warn "No $ENV_FILE yet (written by the first deploy)"
-  read -rsp "  Paste DATABASE_URL (hidden): " DATABASE_URL_VALUE
-  echo
-else
-  warn "No $ENV_FILE yet; it is written by the first deploy (add --ask-db to test the database now)"
-fi
-
-section "Managed PostgreSQL"
-if [[ -n $DATABASE_URL_VALUE ]]; then
-  [[ $DATABASE_URL_VALUE == *sslmode=require* ]] && pass "DATABASE_URL requires SSL" || fail "DATABASE_URL should end with ?sslmode=require"
-  # psql understands only libpq parameters, so keep just sslmode.
-  SSLMODE="$(grep -oE 'sslmode=[a-z-]+' <<< "$DATABASE_URL_VALUE" | head -1)"
-  PGURL="${DATABASE_URL_VALUE%%\?*}?${SSLMODE:-sslmode=require}"
-  RESULT="$(docker run --rm -e PGURL="$PGURL" -e PGCONNECT_TIMEOUT=8 postgres:16-alpine \
-    psql "$PGURL" -tAc "select current_user || '|' || current_database() || '|' || split_part(version(), ' ', 2) || '|' || has_schema_privilege('public', 'CREATE')" 2>&1)"
-  if [[ $RESULT == *"|"*"|"*"|"* ]]; then
-    IFS='|' read -r DB_USER DB_NAME DB_VERSION CAN_CREATE <<< "$(tail -1 <<< "$RESULT")"
-    pass "Connected to database $DB_NAME as $DB_USER (PostgreSQL $DB_VERSION)"
-    [[ $CAN_CREATE == true ]] && pass "$DB_USER can create tables in schema public (migrations will work)" || fail "$DB_USER cannot create tables in public; see the GRANT step in docs/DEPLOYMENT.md"
-  elif grep -qiE 'timeout|could not connect|Connection refused' <<< "$RESULT"; then
-    fail "Cannot reach the database; add this Droplet to its Trusted Sources"
-  elif grep -qi 'password authentication failed' <<< "$RESULT"; then
-    fail "Database rejected the username or password"
-  else
-    fail "Database check failed: $(tail -1 <<< "$RESULT" | cut -c1-160)"
+  (( $(env_value POSTGRES_PASSWORD | wc -c) > 24 )) && pass "POSTGRES_PASSWORD is 24+ characters" || fail "POSTGRES_PASSWORD is shorter than 24 characters"
+  [[ "$(env_value POSTGRES_PASSWORD)" =~ ^[A-Za-z0-9]+$ ]] && pass "POSTGRES_PASSWORD is URL-safe" || fail "POSTGRES_PASSWORD should be letters and digits only (openssl rand -hex 24)"
+  if [[ -n "$(env_value SPACES_BACKUP_BUCKET)" && "$(env_value SPACES_BACKUP_BUCKET)" == "$(env_value SPACES_BUCKET)" ]]; then
+    fail "SPACES_BACKUP_BUCKET must be a separate private bucket, not the public image bucket"
   fi
 else
-  warn "Database not checked yet"
+  warn "No $ENV_FILE yet; it is written by the first deploy"
 fi
 
+container() { docker ps -q --filter label=com.docker.compose.project=larder --filter "label=com.docker.compose.service=$1"; }
+check_container() { # name, container id
+  local health
+  health="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$2")"
+  [[ $health == healthy ]] && pass "$1 container is healthy ($(docker inspect -f '{{.Config.Image}}' "$2"))" || fail "$1 container health is '$health' (dc logs $1)"
+  [[ "$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' "$2")" == unless-stopped ]] && pass "$1 restart policy is unless-stopped" || fail "$1 restart policy is not unless-stopped"
+}
+
 section "App container"
-CID="$(docker ps -q --filter label=com.docker.compose.project=larder --filter label=com.docker.compose.service=app)"
+CID="$(container app)"
 if [[ -z $CID ]]; then
   warn "App is not running yet (it starts on the first deploy)"
 else
-  HEALTH="$(docker inspect -f '{{.State.Health.Status}}' "$CID")"
-  [[ $HEALTH == healthy ]] && pass "App container is healthy ($(docker inspect -f '{{.Config.Image}}' "$CID"))" || fail "App container health is '$HEALTH' (docker compose -f $APP_DIR/docker-compose.prod.yml logs app)"
-  [[ "$(docker inspect -f '{{.HostConfig.RestartPolicy.Name}}' "$CID")" == unless-stopped ]] && pass "Restart policy is unless-stopped" || fail "Restart policy is not unless-stopped"
+  check_container app "$CID"
   LISTEN="$(ss -Hltn 'sport = :3000' | awk '{print $4}' | sort -u | tr '\n' ' ')"
   if [[ -n $LISTEN && $LISTEN != *0.0.0.0* && $LISTEN != *"[::]"* && $LISTEN != *"*:"* ]]; then pass "Port 3000 listens on loopback only ($LISTEN)"; else fail "Port 3000 is exposed beyond loopback: $LISTEN"; fi
   curl -fsS --max-time 5 http://127.0.0.1:3000/api/health | grep -q '"status":"ok"' && pass "App answers on 127.0.0.1:3000/api/health" || fail "App does not answer locally"
+fi
+
+section "PostgreSQL"
+DB_CID="$(container db)"
+if [[ -z $DB_CID ]]; then
+  warn "Database is not running yet (it starts on the first deploy)"
+else
+  check_container db "$DB_CID"
+  [[ -z "$(docker port "$DB_CID")" ]] && pass "Postgres publishes no ports (internal network only)" || fail "Postgres publishes ports: $(docker port "$DB_CID" | tr '\n' ' ')"
+  ss -Hltn 'sport = :5432' | grep -q . && fail "Something listens on port 5432 on the host" || pass "Nothing listens on port 5432 on the host"
+  VOLUME="$(docker inspect -f '{{range .Mounts}}{{if eq .Destination "/var/lib/postgresql/data"}}{{.Type}}:{{.Name}}{{end}}{{end}}' "$DB_CID")"
+  [[ $VOLUME == volume:* ]] && pass "Data is on the Docker volume ${VOLUME#volume:}" || fail "Postgres data is not on a named volume"
+  # shellcheck disable=SC2016  # $POSTGRES_* expand inside the container.
+  SIZE="$(docker exec "$DB_CID" sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "select pg_size_pretty(pg_database_size(current_database())) || \$\$|\$\$ || count(*) from \"_prisma_migrations\" where finished_at is not null"' 2> /dev/null)"
+  if [[ $SIZE == *"|"* ]]; then pass "Database answers (${SIZE%%|*}, ${SIZE##*|} migrations applied)"; else fail "Could not query the database (dc logs db)"; fi
+fi
+
+section "Backups"
+BACKUP_CID="$(container backup)"
+BACKUP_DIR="$APP_DIR/backups"
+if [[ -z $BACKUP_CID ]]; then
+  warn "Backup service is not running yet (it starts on the first deploy)"
+else
+  check_container backup "$BACKUP_CID"
+  CHECK="$(docker exec "$BACKUP_CID" backup.sh --check 2>&1)"
+  if [[ $? -eq 0 ]]; then pass "$(tail -1 <<< "$CHECK")"; else fail "Spaces backup bucket check failed: $(tail -1 <<< "$CHECK" | cut -c1-200)"; fi
+  [[ $(stat -c '%a' "$BACKUP_DIR" 2> /dev/null) == 700 ]] && pass "$BACKUP_DIR is private (mode 700)" || fail "$BACKUP_DIR should exist with mode 700"
+  LATEST="$(find "$BACKUP_DIR" -maxdepth 1 -name 'larder-*.dump' -size +0 -printf '%T@ %f\n' 2> /dev/null | sort -n | tail -1)"
+  if [[ -z $LATEST ]]; then
+    warn "No dump yet; the first runs at 03:15 UTC (or now: dc exec backup backup.sh)"
+  else
+    AGE_HOURS=$((($(date +%s) - ${LATEST%%.*}) / 3600))
+    if ((AGE_HOURS < 36)); then pass "Latest dump ${LATEST#* } is ${AGE_HOURS}h old"; else fail "Latest dump ${LATEST#* } is ${AGE_HOURS}h old; nightly backups are not running (dc logs backup)"; fi
+  fi
 fi
 
 section "Public site"

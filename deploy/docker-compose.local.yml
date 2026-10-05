@@ -1,12 +1,10 @@
-# Runs the production compose file locally against a database on your machine,
-# for checking the image, healthcheck, and migrations before a deploy:
+# Runs the production compose file locally, for checking the image,
+# healthchecks, migrations, and backups before a deploy:
 #
 #   docker build -f deploy/Dockerfile -t larder-app:local .
-#   cd deploy && cp ../.env .env   # then set DATABASE_URL host to host.docker.internal
-#   docker compose -f docker-compose.prod.yml -f docker-compose.local.yml up -d
+#   cd deploy && cp ../.env .env   # set POSTGRES_* and the SPACES_* values
+#   docker compose -f docker-compose.prod.yml -f docker-compose.local.yml up -d --build
 #   curl http://127.0.0.1:3000/api/health
 services:
   app:
     image: larder-app:local
-    extra_hosts:
-      - "host.docker.internal:host-gateway"

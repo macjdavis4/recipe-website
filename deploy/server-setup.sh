@@ -76,6 +76,7 @@ fi
 
 step "Creating $APP_DIR"
 install -d -m 750 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$APP_DIR"
+install -d -m 700 -o "$DEPLOY_USER" -g "$DEPLOY_USER" "$APP_DIR/backups"
 
 step "Installing the nginx site for $DOMAIN"
 if [[ -f $SITE ]] && grep -q "managed by Certbot" "$SITE" && [[ ${FORCE_NGINX:-0} != 1 ]]; then

@@ -5,13 +5,13 @@ A community recipe sharing site with two AI features: a cooking Q&A assistant an
 ## Stack
 - Next.js 15 (App Router, Server Components, Server Actions) with TypeScript in strict mode
 - Tailwind CSS and shadcn/ui (Radix primitives), lucide-react icons
-- PostgreSQL 16 with Prisma ORM (Docker Compose locally; DigitalOcean Managed PostgreSQL in production)
+- PostgreSQL 16 with Prisma ORM (Docker Compose locally and on the Droplet)
 - Auth.js v5 (next-auth@beta): Credentials provider with bcrypt, JWT session strategy, optional Google provider enabled only when GOOGLE_CLIENT_ID is set
 - Zod for all input validation (forms, server actions, route handlers, AI output)
 - react-hook-form with zodResolver for forms
 - Anthropic SDK (@anthropic-ai/sdk) behind an `AIProvider` interface in `src/lib/ai/`
 - Image storage behind a `StorageAdapter` interface: local disk (`/public/uploads`) in dev, DigitalOcean Spaces (S3-compatible, via @aws-sdk/client-s3) in production, chosen by `STORAGE_DRIVER`
-- Production: one DigitalOcean Droplet running the app container with Docker Compose behind the host's nginx (Certbot HTTPS), with DigitalOcean Managed PostgreSQL (daily backups). Deployed by GitHub Actions through GitHub Container Registry on every push to main
+- Production: one DigitalOcean Droplet running the app, PostgreSQL 16, and a nightly backup job with Docker Compose behind the host's nginx (Certbot HTTPS). The Droplet has no DigitalOcean backups, so every dump is also copied to a private Spaces bucket. Deployed by GitHub Actions through GitHub Container Registry on every push to main
 - Vitest for unit tests, Playwright for end-to-end tests
 - pnpm as the package manager
 
@@ -26,9 +26,10 @@ A community recipe sharing site with two AI features: a cooking Q&A assistant an
 ## Deployment rules
 - `next.config` uses `output: "standalone"` and allows the Spaces CDN domain in `images.remotePatterns`.
 - Production config lives in `deploy/` (Dockerfile, docker-compose.prod.yml, nginx site template, server setup and verification scripts). The guide is `docs/DEPLOYMENT.md`.
-- The app service uses `restart: unless-stopped` and a healthcheck, and publishes only on `127.0.0.1:3000`. The host's nginx is the only public entry point (80, 443). The database is Managed PostgreSQL over SSL (`sslmode=require`), reachable only from trusted sources.
+- Every service uses `restart: unless-stopped` and a healthcheck. The app publishes only on `127.0.0.1:3000`, and Postgres publishes no ports (internal Docker network only). The host's nginx is the only public entry point (80, 443).
+- Backups: a nightly `pg_dump` to `/opt/larder/backups` plus a required copy in a private Spaces bucket (`SPACES_BACKUP_BUCKET`), 14-day retention. A failed upload fails the backup.
 - Migrations run with `prisma migrate deploy` when the app container starts. Never use `migrate dev` or `db push` in production.
-- Keep everything 12-factor: all config comes from env vars, and the app container holds no state.
+- Keep everything 12-factor: all config comes from env vars, and the app container holds no state (only the `db` volume does).
 
 ## Working in Claude Code cloud sessions
 - This project is built in Claude Code on the web. Each session is a fresh Ubuntu VM with the repo cloned, and it can pause or be rebuilt between phases. Never rely on state outside the repo.

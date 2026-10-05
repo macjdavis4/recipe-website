@@ -28,17 +28,17 @@ The project codename is **Larder**, which you will still see in internal names (
 
 ## Tech stack
 
-| Area       | Choice                                                                                                                                                                                                                  |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App        | Next.js 15 (App Router, Server Components, Server Actions), TypeScript (strict)                                                                                                                                         |
-| UI         | Tailwind CSS v4, shadcn/ui on Radix, lucide-react, next-themes, Fraunces and Inter                                                                                                                                      |
-| Data       | PostgreSQL 16, Prisma 6                                                                                                                                                                                                 |
-| Auth       | Auth.js v5: credentials with bcrypt, JWT sessions, optional Google                                                                                                                                                      |
-| Validation | Zod for forms, actions, route handlers, env, and AI output; react-hook-form                                                                                                                                             |
-| AI         | Anthropic SDK behind an `AIProvider` interface, with a mock for tests                                                                                                                                                   |
-| Images     | `StorageAdapter`: local disk in development, DigitalOcean Spaces in production                                                                                                                                          |
-| Tests      | Vitest (unit), Playwright (end to end, desktop and 390px)                                                                                                                                                               |
-| Production | One DigitalOcean Droplet running the app container behind the host's nginx (Certbot HTTPS), with DigitalOcean Managed PostgreSQL. Deployed by GitHub Actions through GitHub Container Registry on every push to `main`. |
+| Area       | Choice                                                                                                                                                                                                                       |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App        | Next.js 15 (App Router, Server Components, Server Actions), TypeScript (strict)                                                                                                                                              |
+| UI         | Tailwind CSS v4, shadcn/ui on Radix, lucide-react, next-themes, Fraunces and Inter                                                                                                                                           |
+| Data       | PostgreSQL 16, Prisma 6                                                                                                                                                                                                      |
+| Auth       | Auth.js v5: credentials with bcrypt, JWT sessions, optional Google                                                                                                                                                           |
+| Validation | Zod for forms, actions, route handlers, env, and AI output; react-hook-form                                                                                                                                                  |
+| AI         | Anthropic SDK behind an `AIProvider` interface, with a mock for tests                                                                                                                                                        |
+| Images     | `StorageAdapter`: local disk in development, DigitalOcean Spaces in production                                                                                                                                               |
+| Tests      | Vitest (unit), Playwright (end to end, desktop and 390px)                                                                                                                                                                    |
+| Production | One DigitalOcean Droplet running the app, PostgreSQL, and nightly backups with Docker Compose behind the host's nginx (Certbot HTTPS). Deployed by GitHub Actions through GitHub Container Registry on every push to `main`. |
 
 ## Run it locally
 
@@ -70,8 +70,8 @@ All configuration comes from environment variables, validated at start-up by `sr
 
 | Variable                                                                                             | Required      | Description                                                                                                                  |
 | ---------------------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                                                       | Yes           | Postgres connection string. In production, the Managed PostgreSQL string ending in `?sslmode=require`.                       |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`                                                  | Local only    | Used by `docker-compose.yml` for the development database.                                                                   |
+| `DATABASE_URL`                                                                                       | Dev           | Postgres connection string. In production the compose file builds it from `POSTGRES_*`.                                      |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`                                                  | Yes           | Create the database: `docker-compose.yml` locally, the `db` service in production.                                           |
 | `AUTH_SECRET`                                                                                        | Yes           | 32+ random characters for signing sessions: `openssl rand -base64 33`.                                                       |
 | `AUTH_URL`                                                                                           | Yes           | The public site URL (`http://localhost:3000` locally, `https://your-domain` in production). Also used for link-preview URLs. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                                           | No            | Turns on Google sign-in when both are set.                                                                                   |
@@ -81,6 +81,8 @@ All configuration comes from environment variables, validated at start-up by `sr
 | `AI_PROVIDER`                                                                                        | No            | `mock` or `anthropic`. Blank means `anthropic`, except tests, which always use the mock.                                     |
 | `STORAGE_DRIVER`                                                                                     | No            | `local` (default, files in `public/uploads`) or `spaces`. Use `spaces` in production.                                        |
 | `SPACES_KEY`, `SPACES_SECRET`, `SPACES_REGION`, `SPACES_ENDPOINT`, `SPACES_BUCKET`, `SPACES_CDN_URL` | With `spaces` | DigitalOcean Spaces credentials, bucket, and CDN URL for recipe photos.                                                      |
+| `SPACES_BACKUP_BUCKET`                                                                               | Production    | Private Spaces bucket that receives a copy of every nightly database dump.                                                   |
+| `BACKUP_RETENTION_DAYS`                                                                              | No            | Days of dumps to keep on the Droplet and in Spaces. Default 14.                                                              |
 | `SEED_PASSWORD`                                                                                      | No            | Password for demo users. Default `cookbook-demo`; required to seed in production.                                            |
 | `E2E_DATABASE_URL`                                                                                   | No            | Overrides the end-to-end database (defaults to `DATABASE_URL` renamed to `larder_test`).                                     |
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE`                                                                     | No            | Path to a preinstalled Chromium when `playwright install` cannot download one.                                               |
@@ -192,7 +194,7 @@ In production, photos go to Spaces and are served from its CDN. The demo seed's 
 
 ### Production stack
 
-The host's nginx terminates HTTPS (Certbot), sets the security headers and CSP, and proxies to the app container on `127.0.0.1:3000`. The app runs `prisma migrate deploy` on start, then serves the Next.js standalone build. The database is DigitalOcean Managed PostgreSQL over SSL, reachable only from the Droplet, with daily backups and point-in-time recovery.
+The host's nginx terminates HTTPS (Certbot), sets the security headers and CSP, and proxies to the app container on `127.0.0.1:3000`. The app runs `prisma migrate deploy` on start, then serves the Next.js standalone build. PostgreSQL 16 runs in its own container on the internal Docker network with no published ports, its data on a named volume. A backup container runs `pg_dump` nightly at 03:15 UTC, keeps 14 days of dumps in `/opt/larder/backups`, and copies each dump to a private Spaces bucket, so the backups survive losing the Droplet.
 
 ### Decisions and trade-offs
 
@@ -203,19 +205,19 @@ The host's nginx terminates HTTPS (Certbot), sets the security headers and CSP, 
 
 ## Deploying to DigitalOcean
 
-**Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).** It goes from an existing Droplet and Managed PostgreSQL cluster to a live site, and covers day-to-day operations and troubleshooting.
+**Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).** It goes from an existing Droplet to a live site, and covers day-to-day operations and troubleshooting.
 
 In short:
 
-1. Prepare the database: allow the Droplet as a trusted source, create a `larder` user and database, and grant it `CREATE` on schema `public`.
-2. Create a Spaces bucket and access key for photos.
-3. Point your domain at the Droplet.
-4. Run `deploy/server-setup.sh` on the Droplet. It creates a restricted `deploy` user, sets up `/opt/larder`, installs the nginx site, and gets a Certbot certificate.
-5. Run `deploy/verify-server.sh` to check the server and the database.
+1. Create two Spaces buckets (public photos, private backups) and an access key.
+2. Point your domain at the Droplet.
+3. Run `deploy/server-setup.sh` on the Droplet. It creates a restricted `deploy` user, sets up `/opt/larder`, installs the nginx site, and gets a Certbot certificate.
+4. Run `deploy/verify-server.sh` to check the server.
+5. Generate the secrets, including a database password (`openssl rand -hex 24`).
 6. Add the GitHub secrets (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`, `PRODUCTION_ENV`) and the `PRODUCTION_URL` variable.
-7. Push to `main`.
+7. Push to `main`, take the first backup, and run `verify-server.sh` again.
 
-**After setup**, every push to `main` runs the checks, builds and pushes `ghcr.io/macjdavis4/recipe-website:<commit>`, deploys it over SSH, and waits for `https://your-domain/api/health`. Run `verify-server.sh` again afterwards: every check should pass.
+**After setup**, every push to `main` runs the checks, builds and pushes `ghcr.io/macjdavis4/recipe-website:<commit>`, deploys it over SSH, and waits for `https://your-domain/api/health`. Run `verify-server.sh` again afterwards: every check should pass, including the database and the Spaces backup copy.
 
 To check the production image locally before deploying, run `deploy/docker-compose.local.yml` (see its header).
 
