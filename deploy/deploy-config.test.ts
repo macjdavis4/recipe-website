@@ -35,23 +35,46 @@ describe("deploy config", () => {
       .filter((block) => block.trim())
       .map((block) => block.trim().split(":")[0]);
 
-    it("runs only the app (nginx and Managed PostgreSQL live outside Docker)", () => {
-      expect(services).toEqual(["app"]);
+    const service = (name: string) =>
+      servicesBlock.split(/^(?=  [a-z][\w-]*:\n)/m).find((b) => b.startsWith(`  ${name}:`)) ?? "";
+
+    it("runs the app, Postgres, and the backup job (nginx lives on the host)", () => {
+      expect(services).toEqual(["app", "db", "backup"]);
     });
 
-    it("restarts unless stopped and has a healthcheck", () => {
-      expect(compose).toContain("restart: unless-stopped");
-      expect(compose).toContain("healthcheck:");
+    it("restarts every service unless stopped, each with a healthcheck", () => {
+      for (const name of services) {
+        expect(service(name)).toContain("restart: unless-stopped");
+        expect(service(name)).toContain("healthcheck:");
+      }
     });
 
-    it("publishes the app only on loopback, never on a public interface", () => {
+    it("publishes only the app, only on loopback; Postgres stays internal", () => {
       const ports = [...compose.matchAll(/^\s+- "([^"]+)"$/gm)].map((m) => m[1]);
       expect(ports).toEqual(["127.0.0.1:3000:3000"]);
+      expect(service("db")).not.toContain("ports:");
     });
 
-    it("takes DATABASE_URL from .env instead of building one", () => {
-      expect(compose).not.toMatch(/DATABASE_URL:/);
-      expect(compose).toContain("env_file: .env");
+    it("points the app at the db service", () => {
+      expect(service("app")).toContain(
+        "DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}",
+      );
+    });
+
+    it("keeps Postgres data on a named volume and dumps in ./backups", () => {
+      expect(service("db")).toContain("pgdata:/var/lib/postgresql/data");
+      expect(service("backup")).toContain("./backups:/backups");
+    });
+
+    it("copies every backup off the Droplet to Spaces", () => {
+      expect(service("backup")).toContain("SPACES_BACKUP_BUCKET: ${SPACES_BACKUP_BUCKET}");
+      expect(read("deploy/backup/backup.sh")).toMatch(/SPACES_BACKUP_BUCKET:\?/);
+    });
+
+    it("ships the backup folder with each deploy and builds it", () => {
+      const workflow = read(".github/workflows/deploy.yml");
+      expect(workflow).toMatch(/scp -r [^\n]*deploy\/backup /);
+      expect(workflow).toContain("up -d --build --remove-orphans");
     });
   });
 
