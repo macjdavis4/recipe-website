@@ -1,3 +1,4 @@
+import { ChefHat } from "lucide-react";
 import Link from "next/link";
 import { SITE_NAME } from "@/lib/site";
 import { DesktopNav } from "./desktop-nav";
@@ -12,9 +13,11 @@ export function SiteHeader() {
         <MobileSheet />
         <Link
           href="/"
-          className="inline-flex min-h-11 min-w-0 items-center rounded-md font-heading text-[0.9375rem] font-semibold text-primary sm:text-xl lg:text-2xl"
+          className="inline-flex min-h-11 min-w-0 items-center gap-1.5 rounded-md font-heading text-[0.9375rem] leading-tight font-semibold text-primary sm:gap-2 sm:text-xl md:text-lg lg:text-2xl"
         >
-          <span className="truncate">{SITE_NAME}</span>
+          <ChefHat className="size-5 shrink-0 sm:size-6" aria-hidden="true" />
+          {/* Wraps to two lines on narrow phones instead of cutting the name off. */}
+          <span className="line-clamp-2">{SITE_NAME}</span>
         </Link>
         <div className="flex-1 md:ml-4">
           <DesktopNav />

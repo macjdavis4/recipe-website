@@ -38,8 +38,8 @@ describe("authorized callback", () => {
     expect(run("/recipes/new", user)).toBe(true);
   });
 
-  it("sends signed-in users away from login and signup", () => {
-    expect((run("/login", user) as Response).headers.get("location")).toBe("http://localhost/");
+  it("leaves login and signup to the pages, which check the session in the database", () => {
+    expect(run("/login", user)).toBe(true);
     expect(run("/signup", null)).toBe(true);
   });
 

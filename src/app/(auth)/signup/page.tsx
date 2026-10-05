@@ -34,6 +34,13 @@ export default async function SignupPage({
     >
       {isGoogleEnabled() && <GoogleButton callbackUrl={next} />}
       <SignupForm callbackUrl={next} />
+      <p className="text-sm text-muted-foreground">
+        Your recipes and name are public; your email is not. See{" "}
+        <Link href="/privacy" className="font-medium text-primary underline underline-offset-4">
+          how we handle your data
+        </Link>
+        .
+      </p>
     </AuthCard>
   );
 }

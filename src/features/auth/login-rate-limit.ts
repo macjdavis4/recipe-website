@@ -6,6 +6,9 @@ export const MAX_FAILURES_PER_EMAIL = 5;
 export const MAX_FAILURES_PER_IP = 20;
 export const SIGNUP_WINDOW_MS = 60 * 60 * 1000;
 export const MAX_SIGNUPS_PER_IP = 10;
+export const RESET_WINDOW_MS = 60 * 60 * 1000;
+export const MAX_RESETS_PER_EMAIL = 3;
+export const MAX_RESETS_PER_IP = 10;
 // Rows older than this are pruned. Longer than every window above.
 const RETENTION_MS = 24 * 60 * 60 * 1000;
 
@@ -13,6 +16,8 @@ export const keys = {
   email: (email: string) => `login:email:${email}`,
   ip: (ip: string) => `login:ip:${ip}`,
   signupIp: (ip: string) => `signup:ip:${ip}`,
+  resetEmail: (email: string) => `reset:email:${email}`,
+  resetIp: (ip: string) => `reset:ip:${ip}`,
 };
 
 async function countSince(key: string, windowMs: number): Promise<number> {
@@ -53,5 +58,20 @@ export async function allowSignup(ip: string | null): Promise<boolean> {
   if (!ip) return true;
   if ((await countSince(keys.signupIp(ip), SIGNUP_WINDOW_MS)) >= MAX_SIGNUPS_PER_IP) return false;
   await record([keys.signupIp(ip)]);
+  return true;
+}
+
+/**
+ * Records a password reset request and returns false when this email or IP is
+ * over its hourly limit. Counted whether or not the account exists, so the
+ * limit reveals nothing about which emails have accounts.
+ */
+export async function allowResetRequest(email: string, ip: string | null): Promise<boolean> {
+  const [byEmail, byIp] = await Promise.all([
+    countSince(keys.resetEmail(email), RESET_WINDOW_MS),
+    ip ? countSince(keys.resetIp(ip), RESET_WINDOW_MS) : Promise.resolve(0),
+  ]);
+  if (byEmail >= MAX_RESETS_PER_EMAIL || byIp >= MAX_RESETS_PER_IP) return false;
+  await record(ip ? [keys.resetEmail(email), keys.resetIp(ip)] : [keys.resetEmail(email)]);
   return true;
 }

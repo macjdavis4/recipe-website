@@ -75,4 +75,15 @@ test.describe("guests can read everything", () => {
     await page.goto("/assistant");
     await expect(page).toHaveURL(/\/login\?callbackUrl=%2Fassistant/);
   });
+
+  test("the footer links to the privacy page", async ({ page }) => {
+    await page.goto("/");
+    await page
+      .getByRole("navigation", { name: "Footer" })
+      .getByRole("link", { name: "Privacy" })
+      .click();
+    await expect(page.getByRole("heading", { name: "Privacy", level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Deleting your account" })).toBeVisible();
+    await expectNoHorizontalScroll(page);
+  });
 });

@@ -46,6 +46,8 @@ export default defineConfig({
       AI_PROVIDER: "mock",
       AI_RATE_LIMIT_PER_HOUR: String(AI_LIMIT),
       STORAGE_DRIVER: "local",
+      // Reset emails go to the server log; tests create links directly in the database.
+      EMAIL_PROVIDER: "log",
       SEED_PASSWORD,
     },
   },

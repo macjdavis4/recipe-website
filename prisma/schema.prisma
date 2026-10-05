@@ -23,19 +23,22 @@ enum AiUsageKind {
 }
 
 model User {
-  id            String    @id @default(cuid())
-  name          String?
-  email         String    @unique
+  id                String    @id @default(cuid())
+  name              String?
+  email             String    @unique
   // Required by the Auth.js Prisma adapter for OAuth sign-ins.
-  emailVerified DateTime?
+  emailVerified     DateTime?
   // Null for users who only sign in with OAuth.
-  passwordHash  String?
-  image         String?
-  createdAt     DateTime  @default(now())
+  passwordHash      String?
+  // Set when the password is reset. Sessions that started earlier are signed out.
+  passwordChangedAt DateTime?
+  image             String?
+  createdAt         DateTime  @default(now())
 
-  accounts Account[]
-  recipes  Recipe[]
-  aiUsage  AiUsage[]
+  accounts            Account[]
+  recipes             Recipe[]
+  aiUsage             AiUsage[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 // Auth.js OAuth account link. Sessions use JWTs, so there is no Session table.
@@ -65,6 +68,20 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+// One-time password reset links. Only a SHA-256 hash of the token is stored,
+// so a database leak does not expose working links.
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Recipe {

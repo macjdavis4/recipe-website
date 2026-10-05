@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Fraunces, Inter } from "next/font/google";
 import { Toaster } from "sonner";
+import { SiteFooter } from "@/components/layout/site-footer";
 import { BottomTabs } from "@/components/layout/bottom-tabs";
 import { SiteHeader } from "@/components/layout/site-header";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -45,13 +46,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
             Skip to content
           </a>
           <SiteHeader />
-          {/* Bottom padding keeps content clear of the mobile tab bar. */}
-          <main
-            id="main"
-            className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-12"
-          >
+          <main id="main" className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-10 md:pb-12">
             {children}
           </main>
+          <SiteFooter />
           <BottomTabs />
           <Toaster richColors closeButton position="top-center" />
         </ThemeProvider>

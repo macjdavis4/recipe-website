@@ -33,6 +33,10 @@ export const envSchema = z
     SPACES_ENDPOINT: optional(z.url()),
     SPACES_BUCKET: optional(z.string()),
     SPACES_CDN_URL: optional(z.url()),
+
+    EMAIL_PROVIDER: optional(z.enum(["resend", "log"])),
+    RESEND_API_KEY: optional(z.string()),
+    EMAIL_FROM: optional(z.string()),
   })
   .superRefine((env, ctx) => {
     const require = (key: keyof typeof env, reason: string) => {
@@ -47,6 +51,11 @@ export const envSchema = z
     const aiProvider = env.AI_PROVIDER ?? (env.NODE_ENV === "test" ? "mock" : "anthropic");
     if (env.NODE_ENV === "production" && aiProvider === "anthropic") {
       require("ANTHROPIC_API_KEY", "in production unless AI_PROVIDER=mock");
+    }
+
+    if (emailProvider(env) === "resend") {
+      require("RESEND_API_KEY", "when EMAIL_PROVIDER=resend");
+      require("EMAIL_FROM", "when sending email with Resend");
     }
 
     if (env.STORAGE_DRIVER === "spaces") {
@@ -64,6 +73,19 @@ export const envSchema = z
   });
 
 export type Env = z.infer<typeof envSchema>;
+
+type EmailSettings = Pick<Env, "NODE_ENV" | "EMAIL_PROVIDER" | "RESEND_API_KEY">;
+
+/**
+ * How email is sent: Resend when it has a key, the server log in dev and
+ * tests, and not at all in production without a key (password reset is then
+ * switched off rather than printing reset links to the log).
+ */
+export function emailProvider(env: EmailSettings): "resend" | "log" | null {
+  if (env.EMAIL_PROVIDER) return env.EMAIL_PROVIDER;
+  if (env.RESEND_API_KEY) return "resend";
+  return env.NODE_ENV === "production" ? null : "log";
+}
 
 export function parseEnv(source: Record<string, string | undefined>): Env {
   const result = envSchema.safeParse(source);

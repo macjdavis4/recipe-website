@@ -5,6 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import { clientIp } from "@/features/auth/client-ip";
 import { verifyCredentials } from "@/features/auth/credentials";
+import { isSessionCurrent } from "@/features/auth/session-check";
 import { authConfig } from "./auth.config";
 import { db } from "./db";
 import { getEnv } from "./env";
@@ -20,6 +21,16 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
   return {
     ...authConfig,
     adapter: PrismaAdapter(db),
+    callbacks: {
+      ...authConfig.callbacks,
+      // Node only (middleware keeps the edge-safe version): returning null
+      // signs out sessions that started before a password reset.
+      async jwt(params) {
+        const token = authConfig.callbacks.jwt(params);
+        if (params.user) return token;
+        return (await isSessionCurrent(token)) ? token : null;
+      },
+    },
     logger: {
       // A wrong password is expected, not a server error. Skip its stack trace.
       error(error) {

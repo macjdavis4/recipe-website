@@ -58,6 +58,8 @@ services:
       SPACES_ENDPOINT: ${SPACES_ENDPOINT}
       SPACES_BACKUP_BUCKET: ${SPACES_BACKUP_BUCKET}
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      # Optional healthchecks.io ping URL: emails you when a nightly backup is missed or fails.
+      BACKUP_PING_URL: ${BACKUP_PING_URL:-}
     volumes:
       - ./backups:/backups
     depends_on:

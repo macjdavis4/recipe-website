@@ -9,7 +9,6 @@ const PROTECTED_PATHS = [
   /^\/recipes\/[^/]+\/edit\/?$/,
   /^\/assistant(\/|$)/,
 ];
-const AUTH_PAGES = ["/login", "/signup"];
 
 export function isProtectedPath(pathname: string): boolean {
   return PROTECTED_PATHS.some((pattern) => pattern.test(pathname));
@@ -25,10 +24,9 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const signedIn = Boolean(auth?.user);
 
-      if (AUTH_PAGES.includes(nextUrl.pathname)) {
-        return signedIn ? Response.redirect(new URL("/", nextUrl)) : true;
-      }
-
+      // Login and signup are not handled here: the edge cannot tell that a
+      // session was ended by a password reset, and would bounce that user
+      // away from the login page. Those pages check the session themselves.
       if (isProtectedPath(nextUrl.pathname) && !signedIn) {
         const login = new URL("/login", nextUrl);
         login.searchParams.set("callbackUrl", `${nextUrl.pathname}${nextUrl.search}`);
@@ -38,7 +36,10 @@ export const authConfig = {
       return true;
     },
     jwt({ token, user }) {
-      if (user?.id) token.sub = user.id;
+      if (user?.id) {
+        token.sub = user.id;
+        token.authAt = Date.now();
+      }
       return token;
     },
     session({ session, token }) {

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { parseEnv } from "./env";
+import { emailProvider, parseEnv } from "./env";
 
 const base = { DATABASE_URL: "postgresql://larder:pw@localhost:5432/larder" };
 const secret = "x".repeat(32);
@@ -64,5 +64,29 @@ describe("parseEnv", () => {
       expect(String(error)).not.toContain(leaked);
       expect(String(error)).not.toContain("short");
     }
+  });
+
+  it("requires a sender address when sending with Resend", () => {
+    expect(() => parseEnv({ ...base, RESEND_API_KEY: "re_test" })).toThrow(/EMAIL_FROM/);
+    expect(() => parseEnv({ ...base, EMAIL_PROVIDER: "resend" })).toThrow(/RESEND_API_KEY/);
+    expect(() =>
+      parseEnv({ ...base, RESEND_API_KEY: "re_test", EMAIL_FROM: "Site <a@example.com>" }),
+    ).not.toThrow();
+  });
+});
+
+describe("emailProvider", () => {
+  it("uses Resend when it has a key", () => {
+    expect(emailProvider({ NODE_ENV: "production", RESEND_API_KEY: "re_test" })).toBe("resend");
+  });
+
+  it("logs emails in development and tests", () => {
+    expect(emailProvider({ NODE_ENV: "development" })).toBe("log");
+    expect(emailProvider({ NODE_ENV: "test" })).toBe("log");
+  });
+
+  it("sends nothing in production without a key, unless told to log", () => {
+    expect(emailProvider({ NODE_ENV: "production" })).toBeNull();
+    expect(emailProvider({ NODE_ENV: "production", EMAIL_PROVIDER: "log" })).toBe("log");
   });
 });

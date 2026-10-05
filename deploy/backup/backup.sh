@@ -3,6 +3,8 @@
 # the private Spaces bucket SPACES_BACKUP_BUCKET, then deletes dumps older than
 # BACKUP_RETENTION_DAYS (default 14) in both places. The Spaces copy is what
 # survives losing the Droplet, so a failed upload fails the whole run.
+# When BACKUP_PING_URL is set (a healthchecks.io check), each run reports its
+# start, success, or failure there, and a missed night sends you an email.
 #
 #   docker compose -f docker-compose.prod.yml exec backup backup.sh          # back up now
 #   docker compose -f docker-compose.prod.yml exec backup backup.sh --check  # test Spaces access
@@ -38,10 +40,22 @@ if [ "${1:-}" = "--check" ]; then
   exit 0
 fi
 
+# A ping that fails is logged but never fails the backup itself.
+ping() {
+  [ -n "${BACKUP_PING_URL:-}" ] || return 0
+  curl -fsS -m 10 --retry 3 -o /dev/null "${BACKUP_PING_URL}$1" || log "Could not reach BACKUP_PING_URL${1}"
+}
+
 umask 077
 mkdir -p "$DIR"
 NAME="larder-$(date -u +%Y%m%d-%H%M%S).dump"
-trap 'rm -f "$DIR/$NAME.partial"' EXIT
+finish() {
+  status=$?
+  rm -f "$DIR/$NAME.partial"
+  [ "$status" -eq 0 ] || ping /fail
+}
+trap finish EXIT
+ping /start
 
 log "Dumping ${PGDATABASE}..."
 pg_dump --format=custom --no-owner --no-privileges --file="$DIR/$NAME.partial"
@@ -67,3 +81,4 @@ aws s3 ls --endpoint-url "$SPACES_ENDPOINT" "${PREFIX}/" | awk '{print $4}' | wh
   fi
 done
 log "Backup complete."
+ping ""

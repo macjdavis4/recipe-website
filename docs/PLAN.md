@@ -1,7 +1,7 @@
-# The Cushman Cookbook: build plan
+# The Cushman Davis Cookbook: build plan
 
 ## Context
-The repo holds only `CLAUDE.md` and `.env.example`. We are building The Cushman Cookbook (codename Larder, which internal identifiers like the `larder` database still use), a recipe sharing app (Next.js 15, Prisma/Postgres, Auth.js v5, Anthropic AI), in 7 phases. Each phase ends with lint + typecheck + tests, a commit, a PR, and a short summary before the next phase starts.
+The repo holds only `CLAUDE.md` and `.env.example`. We are building The Cushman Davis Cookbook (codename Larder, which internal identifiers like the `larder` database still use), a recipe sharing app (Next.js 15, Prisma/Postgres, Auth.js v5, Anthropic AI), in 7 phases. Each phase ends with lint + typecheck + tests, a commit, a PR, and a short summary before the next phase starts.
 
 Tooling here: Node 22, pnpm 10, Docker 29, and Chromium preinstalled for Playwright.
 

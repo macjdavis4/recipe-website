@@ -3,19 +3,24 @@
 import { Prisma } from "@prisma/client";
 import { AuthError, CredentialsSignin } from "next-auth";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
+import { after } from "next/server";
 import { z } from "zod";
 import { signIn, signOut } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { getEmailSender } from "@/lib/email";
 import { safeCallbackUrl } from "./callback-url";
 import { clientIp } from "./client-ip";
-import { allowSignup } from "./login-rate-limit";
+import { allowResetRequest, allowSignup } from "./login-rate-limit";
+import { RESET_UNAVAILABLE } from "./messages";
 import { hashPassword } from "./password";
-import { loginSchema, signupSchema } from "./schemas";
+import { resetPassword, sendPasswordResetEmail } from "./password-reset";
+import { forgotPasswordSchema, loginSchema, resetPasswordSchema, signupSchema } from "./schemas";
 
 export type AuthActionResult = {
   ok: false;
   message?: string;
-  fieldErrors?: Partial<Record<"name" | "email" | "password", string>>;
+  fieldErrors?: Partial<Record<"name" | "email" | "password" | "confirmPassword", string>>;
 };
 
 const GENERIC_LOGIN_ERROR = "Email or password is incorrect.";
@@ -82,4 +87,42 @@ export async function googleSignInAction(callbackUrl?: unknown): Promise<void> {
 
 export async function logoutAction(): Promise<void> {
   await signOut({ redirectTo: "/" });
+}
+
+/**
+ * Always answers the same way whether or not the account exists, and sends the
+ * email after responding, so neither the message nor the timing reveals who
+ * has an account.
+ */
+export async function forgotPasswordAction(
+  values: unknown,
+): Promise<{ ok: true } | AuthActionResult> {
+  const parsed = forgotPasswordSchema.safeParse(values);
+  if (!parsed.success) return { ok: false, fieldErrors: firstFieldErrors(parsed.error) };
+  if (!getEmailSender()) return { ok: false, message: RESET_UNAVAILABLE };
+
+  const { email } = parsed.data;
+  if (!(await allowResetRequest(email, clientIp(await headers())))) {
+    return { ok: false, message: "Too many reset requests. Try again in an hour." };
+  }
+
+  after(() =>
+    sendPasswordResetEmail(email).catch((error) =>
+      console.error("Failed to send password reset email", error),
+    ),
+  );
+  return { ok: true };
+}
+
+export async function resetPasswordAction(values: unknown): Promise<AuthActionResult> {
+  const parsed = resetPasswordSchema.safeParse(values);
+  if (!parsed.success) return { ok: false, fieldErrors: firstFieldErrors(parsed.error) };
+
+  if (!(await resetPassword(parsed.data.token, parsed.data.password))) {
+    return {
+      ok: false,
+      message: "This reset link has expired or was already used. Request a new one.",
+    };
+  }
+  redirect("/login?reset=1");
 }
