@@ -29,33 +29,60 @@ describe("deploy config", () => {
 
   describe("docker-compose.prod.yml", () => {
     const compose = read("deploy/docker-compose.prod.yml");
-    // Top-level service blocks: two-space indented keys under "services:".
     const servicesBlock = compose.split(/^services:\n/m)[1].split(/^\S/m)[0];
-    const services = Object.fromEntries(
-      servicesBlock
-        .split(/^(?=  [a-z][\w-]*:\n)/m)
-        .filter((block) => block.trim())
-        .map((block) => [block.trim().split(":")[0], block]),
-    );
+    const services = servicesBlock
+      .split(/^(?=  [a-z][\w-]*:\n)/m)
+      .filter((block) => block.trim())
+      .map((block) => block.trim().split(":")[0]);
 
-    it("defines the app, database, proxy, and backup services", () => {
-      expect(Object.keys(services).sort()).toEqual(["app", "backup", "caddy", "db"]);
+    it("runs only the app (nginx and Managed PostgreSQL live outside Docker)", () => {
+      expect(services).toEqual(["app"]);
     });
 
-    it.each(["app", "backup", "caddy", "db"])(
-      "%s restarts unless stopped and has a healthcheck",
-      (name) => {
-        expect(services[name]).toContain("restart: unless-stopped");
-        expect(services[name]).toContain("healthcheck:");
-      },
-    );
+    it("restarts unless stopped and has a healthcheck", () => {
+      expect(compose).toContain("restart: unless-stopped");
+      expect(compose).toContain("healthcheck:");
+    });
 
-    it("publishes ports only from Caddy, never Postgres", () => {
-      const withPorts = Object.entries(services).filter(([, block]) =>
-        /^\s+ports:/m.test(block as string),
-      );
-      expect(withPorts.map(([name]) => name)).toEqual(["caddy"]);
-      expect(compose).not.toMatch(/5432:5432/);
+    it("publishes the app only on loopback, never on a public interface", () => {
+      const ports = [...compose.matchAll(/^\s+- "([^"]+)"$/gm)].map((m) => m[1]);
+      expect(ports).toEqual(["127.0.0.1:3000:3000"]);
+    });
+
+    it("takes DATABASE_URL from .env instead of building one", () => {
+      expect(compose).not.toMatch(/DATABASE_URL:/);
+      expect(compose).toContain("env_file: .env");
+    });
+  });
+
+  describe("nginx site template", () => {
+    const conf = read("deploy/nginx/larder.conf.template");
+
+    it("proxies to the loopback app with the headers the app relies on", () => {
+      expect(conf).toContain("server 127.0.0.1:3000;");
+      expect(conf).toContain("proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;");
+      expect(conf).toContain("proxy_set_header Host $host;");
+    });
+
+    it("streams AI answers without buffering", () => {
+      expect(conf).toMatch(/location \/api\/ai\/ \{[^}]*proxy_buffering off;/);
+    });
+
+    it("allows photo uploads up to the app's 5 MB limit", () => {
+      expect(conf).toMatch(/client_max_body_size 6m;/);
+    });
+
+    it("sets security headers only at server level, so locations inherit them", () => {
+      for (const header of [
+        "Strict-Transport-Security",
+        "Content-Security-Policy",
+        "X-Frame-Options",
+      ]) {
+        expect(conf).toContain(`add_header ${header}`);
+      }
+      const locations = conf.match(/^\s+location [^{]+\{[^}]*\}/gm) ?? [];
+      expect(locations.length).toBeGreaterThan(0);
+      for (const block of locations) expect(block).not.toContain("add_header");
     });
   });
 });

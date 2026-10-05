@@ -61,6 +61,7 @@ describe("POST /api/ai/chat", () => {
     const res = await ask(question);
     expect(res.status).toBe(200);
     expect(res.headers.get("Content-Type")).toContain("text/plain");
+    expect(res.headers.get("X-Accel-Buffering")).toBe("no");
     expect(await res.text()).toBe("Pinch the edges.");
     expect(m.recordAiUsage).toHaveBeenCalledWith("u1", "CHAT");
   });

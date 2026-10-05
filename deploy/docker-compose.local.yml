@@ -1,13 +1,12 @@
-# Runs the production stack locally over plain HTTP, for checking images,
-# healthchecks, and migrations before a deploy. In a folder laid out like
-# /opt/larder (this folder plus a .env with DOMAIN=":80"):
+# Runs the production compose file locally against a database on your machine,
+# for checking the image, healthcheck, and migrations before a deploy:
 #
 #   docker build -f deploy/Dockerfile -t larder-app:local .
+#   cd deploy && cp ../.env .env   # then set DATABASE_URL host to host.docker.internal
 #   docker compose -f docker-compose.prod.yml -f docker-compose.local.yml up -d
-#   curl http://localhost:8080/api/health
+#   curl http://127.0.0.1:3000/api/health
 services:
   app:
     image: larder-app:local
-  caddy:
-    ports: !override
-      - "8080:80"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

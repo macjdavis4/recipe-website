@@ -1,0 +1,49 @@
+# nginx site for the app. server-setup.sh installs this as
+# /etc/nginx/sites-available/larder.conf with __DOMAIN__ replaced, then
+# Certbot adds the HTTPS listener and the HTTP-to-HTTPS redirect.
+
+upstream larder_app {
+    server 127.0.0.1:3000;
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name __DOMAIN__;
+
+    # Recipe photos are capped at 5 MB by the app; leave room for form overhead.
+    client_max_body_size 6m;
+
+    # Headers live only at this level: nginx drops server-level add_header
+    # lines in any location that sets its own, so locations set none.
+    add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+    add_header X-Content-Type-Options "nosniff" always;
+    add_header X-Frame-Options "DENY" always;
+    add_header Referrer-Policy "strict-origin-when-cross-origin" always;
+    add_header Permissions-Policy "camera=(), microphone=(), geolocation=(), interest-cohort=()" always;
+    # 'unsafe-inline' scripts are needed for Next.js inline bootstrap scripts
+    # without per-request nonces (docs/PLAN.md, decision 5).
+    add_header Content-Security-Policy "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://*.digitaloceanspaces.com https://lh3.googleusercontent.com; font-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self' https://accounts.google.com; object-src 'none'" always;
+
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    # The app trusts only the LAST X-Forwarded-For entry, which nginx appends here.
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header Connection "";
+    proxy_hide_header X-Powered-By;
+
+    # The assistant streams its answer; buffering would hold it until the end.
+    location /api/ai/ {
+        proxy_pass http://larder_app;
+        proxy_buffering off;
+        proxy_read_timeout 120s;
+    }
+
+    location / {
+        proxy_pass http://larder_app;
+        proxy_read_timeout 60s;
+    }
+}
