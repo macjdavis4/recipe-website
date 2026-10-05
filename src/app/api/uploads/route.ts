@@ -1,6 +1,12 @@
 import { NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
-import { detectImageType, getStorage, imageKey, MAX_UPLOAD_BYTES } from "@/lib/storage";
+import {
+  detectImageType,
+  getStorage,
+  imageKey,
+  MAX_UPLOAD_BYTES,
+  stripImageMetadata,
+} from "@/lib/storage";
 
 // Multipart overhead allowance on top of the file itself.
 const MAX_REQUEST_BYTES = MAX_UPLOAD_BYTES + 64 * 1024;
@@ -29,6 +35,14 @@ export async function POST(request: Request) {
   const contentType = detectImageType(bytes);
   if (!contentType) return error(415, "Use a JPEG, PNG, or WebP photo.");
 
-  const url = await getStorage().save(imageKey(session.user.id, contentType), bytes, contentType);
+  // Photos are public, so drop location and camera details before storing.
+  let clean: Uint8Array;
+  try {
+    clean = await stripImageMetadata(bytes, contentType);
+  } catch {
+    return error(415, "That photo couldn't be read. Try saving it again as a JPEG or PNG.");
+  }
+
+  const url = await getStorage().save(imageKey(session.user.id, contentType), clean, contentType);
   return NextResponse.json({ url }, { status: 201 });
 }

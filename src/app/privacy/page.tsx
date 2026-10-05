@@ -67,9 +67,8 @@ export default function PrivacyPage() {
           visible to anyone. Your email address is never shown on the site.
         </p>
         <p>
-          Photos are published as you upload them. Some phones store the place a photo was taken
-          inside the file, so turn off location for your camera, or remove it before uploading, if
-          you&apos;d rather not share it.
+          When you upload a photo, we remove its hidden details (like the location where it was
+          taken and the camera used) before publishing it.
         </p>
       </Section>
 

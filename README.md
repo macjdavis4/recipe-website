@@ -192,6 +192,7 @@ Uploads go through `/api/uploads`:
 
 - Login required, 5 MB maximum.
 - The type is detected from magic bytes (JPEG, PNG, WebP), never from the browser's MIME type.
+- Every photo is re-encoded with `sharp`: the EXIF orientation is applied, then all metadata (GPS location, camera, XMP) is dropped. Files that don't decode as real images are rejected.
 - Storage keys look like `recipes/<userId>/<uuid>.<ext>`, so a recipe can only use its author's own photos, and cleanup never touches another user's files.
 
 In production, photos go to Spaces and are served from its CDN. The demo seed's photos ship inside the image under `public/seed`.
@@ -228,7 +229,7 @@ To check the production image locally before deploying, run `deploy/docker-compo
 ## Future ideas
 
 - Save and favorite other cooks' recipes; ratings and comments.
-- Strip photo metadata (such as GPS) on upload, and clean up uploads from abandoned forms.
+- Clean up uploads from abandoned forms.
 - Postgres full-text search with ranking once there are many recipes.
 - Shopping list generated from one or more recipes, using the normalized ingredients.
 - Keep chat history per user, and stream pantry ideas as they arrive.

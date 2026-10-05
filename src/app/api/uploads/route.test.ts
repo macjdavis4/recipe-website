@@ -1,3 +1,4 @@
+import sharp from "sharp";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), save: vi.fn() }));
@@ -5,7 +6,9 @@ vi.mock("@/lib/auth", () => ({ auth: mocks.auth }));
 vi.mock("@/lib/storage", async () => {
   const signature = await import("@/lib/storage/file-signature");
   const adapter = await import("@/lib/storage/adapter");
+  const strip = await import("@/lib/storage/strip-metadata");
   return {
+    stripImageMetadata: strip.stripImageMetadata,
     MAX_UPLOAD_BYTES: 5 * 1024 * 1024,
     detectImageType: signature.detectImageType,
     imageKey: adapter.imageKey,
@@ -16,6 +19,15 @@ vi.mock("@/lib/storage", async () => {
 const { POST } = await import("./route");
 
 const PNG = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+
+// A real PNG with a GPS location in its EXIF, like a phone photo.
+const photoWithGps = async () =>
+  new Uint8Array(
+    await sharp({ create: { width: 8, height: 8, channels: 3, background: "#c96" } })
+      .withExif({ IFD3: { GPSLatitudeRef: "N", GPSLatitude: "41/1 52/1 0/1" } })
+      .png()
+      .toBuffer(),
+  );
 
 function upload(bytes: number[] | Uint8Array, name = "photo.png") {
   const form = new FormData();
@@ -36,11 +48,18 @@ describe("POST /api/uploads", () => {
     expect(mocks.save).not.toHaveBeenCalled();
   });
 
-  it("stores a real image under the user's key", async () => {
-    const res = await POST(upload([...PNG, 1, 2, 3]));
+  it("stores a real image under the user's key, without its metadata", async () => {
+    const res = await POST(upload(await photoWithGps()));
     expect(res.status).toBe(201);
     expect((await res.json()).url).toMatch(/^\/uploads\/recipes\/u1\/[0-9a-f-]{36}\.png$/);
-    expect(mocks.save.mock.calls[0][2]).toBe("image/png");
+    const [, saved, type] = mocks.save.mock.calls[0];
+    expect(type).toBe("image/png");
+    expect((await sharp(saved).metadata()).exif).toBeUndefined();
+  });
+
+  it("rejects a file that only starts like a PNG (415)", async () => {
+    expect((await POST(upload([...PNG, 1, 2, 3]))).status).toBe(415);
+    expect(mocks.save).not.toHaveBeenCalled();
   });
 
   it("rejects a non-image even when named and typed like one (415)", async () => {
