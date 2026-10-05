@@ -1,4 +1,4 @@
-# The Cushman Cookbook: Recipe Sharing App
+# The Cushman Davis Cookbook: Recipe Sharing App
 
 A community recipe sharing site with two AI features: a cooking Q&A assistant and a pantry-based recipe suggester. Anyone can browse recipes. Only registered users can create recipes, and users can edit or delete only their own.
 
@@ -68,4 +68,4 @@ A community recipe sharing site with two AI features: a cooking Q&A assistant an
 - Keep components small; no file over about 250 lines
 - Write tests alongside features, not at the end
 - Use clear, direct copy in the UI. No em dashes in UI text.
-- The site name is "The Cushman Cookbook" and lives only in `src/lib/site.ts` (`SITE_NAME`). Never hardcode it. Internal identifiers (package name, `larder` database and Postgres user, Docker resources) keep the original project codename "larder" on purpose.
+- The site name is "The Cushman Davis Cookbook" and lives only in `src/lib/site.ts` (`SITE_NAME`). Never hardcode it. Internal identifiers (package name, `larder` database and Postgres user, Docker resources) keep the original project codename "larder" on purpose.

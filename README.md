@@ -1,4 +1,4 @@
-# The Cushman Cookbook
+# The Cushman Davis Cookbook
 
 A community recipe site. Anyone can browse, search, and cook from shared recipes. Registered cooks can share their own recipes, and edit or delete only their own. Two AI features help in the kitchen: a cooking assistant you can chat with (on its own page or about a specific recipe), and a pantry tool that finds recipes for what you already have.
 

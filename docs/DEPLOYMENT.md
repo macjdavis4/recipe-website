@@ -1,4 +1,4 @@
-# Deploying The Cushman Cookbook
+# Deploying The Cushman Davis Cookbook
 
 This guide takes the site from your existing Droplet to a live site that redeploys on every push to `main`. It assumes:
 
@@ -93,7 +93,7 @@ Without this, the "Forgot your password?" page says reset is unavailable, and `v
    | Setting | Value |
    | --- | --- |
    | `RESEND_API_KEY` | the `re_...` key |
-   | `EMAIL_FROM` | `The Cushman Cookbook <no-reply@recipes.example.com>` |
+   | `EMAIL_FROM` | `The Cushman Davis Cookbook <no-reply@recipes.example.com>` |
 
 ### A contact address
 
@@ -224,7 +224,7 @@ SPACES_BACKUP_BUCKET="larder-backups"
 BACKUP_RETENTION_DAYS=14
 BACKUP_PING_URL="https://hc-ping.com/<your check's id>"
 RESEND_API_KEY="<re_... key>"
-EMAIL_FROM="The Cushman Cookbook <no-reply@recipes.example.com>"
+EMAIL_FROM="The Cushman Davis Cookbook <no-reply@recipes.example.com>"
 # Optional Google sign-in (redirect URI: https://recipes.example.com/api/auth/callback/google)
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
