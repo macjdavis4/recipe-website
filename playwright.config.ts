@@ -48,6 +48,8 @@ export default defineConfig({
       STORAGE_DRIVER: "local",
       // Reset emails go to the server log; tests create links directly in the database.
       EMAIL_PROVIDER: "log",
+      // One admin per project, since both run in parallel.
+      ADMIN_EMAILS: "admin-desktop@example.com,admin-mobile-390@example.com",
       SEED_PASSWORD,
     },
   },

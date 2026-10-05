@@ -93,7 +93,12 @@ export async function resetPassword(token: string, password: string): Promise<bo
   await db.$transaction([
     db.user.update({
       where: { id: row.userId },
-      data: { passwordHash: await hashPassword(password), passwordChangedAt: new Date() },
+      data: {
+        passwordHash: await hashPassword(password),
+        passwordChangedAt: new Date(),
+        // Following an emailed link proves the user controls this inbox.
+        emailVerified: new Date(),
+      },
     }),
     db.passwordResetToken.deleteMany({ where: { userId: row.userId } }),
   ]);

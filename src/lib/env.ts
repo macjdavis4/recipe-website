@@ -37,6 +37,9 @@ export const envSchema = z
     EMAIL_PROVIDER: optional(z.enum(["resend", "log"])),
     RESEND_API_KEY: optional(z.string()),
     EMAIL_FROM: optional(z.string()),
+
+    // Comma-separated emails of accounts that may open /admin.
+    ADMIN_EMAILS: optional(z.string()),
   })
   .superRefine((env, ctx) => {
     const require = (key: keyof typeof env, reason: string) => {

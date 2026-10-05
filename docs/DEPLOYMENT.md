@@ -121,6 +121,18 @@ No code involved. At [uptimerobot.com](https://uptimerobot.com), add a monitor:
 - URL `https://recipes.example.com/api/health`, every 5 minutes.
 - Alert contact: your email.
 
+### The admin area
+
+`/admin` lets you see site totals and delete any recipe or account. It is off until you list your account:
+
+1. Add your login email to `PRODUCTION_ENV` (step 6), then re-run Deploy:
+
+   ```
+   ADMIN_EMAILS="you@example.com"
+   ```
+2. Prove you own that inbox once: log out, use **Forgot your password?**, and follow the emailed link. (Someone who merely signed up with your address could never do this.)
+3. Log in. **Admin** now appears in your account menu. Everyone else who opens `/admin` gets a "page not found".
+
 ## Step 3. Set up the server
 
 **On your computer**, from the repository folder, create the key GitHub Actions will use to deploy. It has no passphrase and is used for nothing else.
@@ -225,6 +237,7 @@ BACKUP_RETENTION_DAYS=14
 # Optional: BACKUP_PING_URL="https://hc-ping.com/<your check's id>"
 RESEND_API_KEY="<re_... key>"
 EMAIL_FROM="The Cushman Davis Cookbook <no-reply@recipes.example.com>"
+ADMIN_EMAILS="<the email you log in with>"
 # Optional Google sign-in (redirect URI: https://recipes.example.com/api/auth/callback/google)
 GOOGLE_CLIENT_ID=""
 GOOGLE_CLIENT_SECRET=""
