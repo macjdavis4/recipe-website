@@ -145,6 +145,7 @@ else
   else
     AGE_HOURS=$((($(date +%s) - ${LATEST%%.*}) / 3600))
     if ((AGE_HOURS < 36)); then pass "Latest dump ${LATEST#* } is ${AGE_HOURS}h old"; else fail "Latest dump ${LATEST#* } is ${AGE_HOURS}h old; nightly backups are not running (dc logs backup)"; fi
+    if [[ $CHECK == *"Latest copy: ${LATEST#* }"* ]]; then pass "Latest dump is also in Spaces"; else fail "Latest dump ${LATEST#* } is not in Spaces; the upload failed (dc exec backup backup.sh)"; fi
   fi
 fi
 
