@@ -13,7 +13,7 @@ export default async function globalSetup() {
   const db = new PrismaClient({ datasources: { db: { url: TEST_DATABASE_URL } } });
   // TRUNCATE (not drop) so a server that is already running keeps working.
   await db.$executeRawUnsafe(
-    'TRUNCATE "User", "Account", "VerificationToken", "Recipe", "Tag", "LoginAttempt", "AiUsage" CASCADE',
+    'TRUNCATE "User", "Account", "VerificationToken", "Recipe", "Tag", "LoginAttempt", "AiUsage", "PasswordResetToken" CASCADE',
   );
   await db.$disconnect();
 

@@ -10,7 +10,14 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 
-const { allowSignup, recordLoginFailure, MAX_SIGNUPS_PER_IP } = await import("./login-rate-limit");
+const {
+  allowResetRequest,
+  allowSignup,
+  recordLoginFailure,
+  MAX_RESETS_PER_EMAIL,
+  MAX_RESETS_PER_IP,
+  MAX_SIGNUPS_PER_IP,
+} = await import("./login-rate-limit");
 
 beforeEach(() => {
   fake.current = createFakeDb();
@@ -38,5 +45,20 @@ describe("recordLoginFailure", () => {
     });
     await recordLoginFailure("ada@example.com", null);
     expect(fake.current.attempts.map((a) => a.key)).toEqual(["login:email:ada@example.com"]);
+  });
+});
+
+describe("allowResetRequest", () => {
+  it("limits requests per email, whatever the IP", async () => {
+    for (let i = 0; i < MAX_RESETS_PER_EMAIL; i++)
+      expect(await allowResetRequest("ada@example.com", `203.0.113.${i}`)).toBe(true);
+    expect(await allowResetRequest("ada@example.com", "198.51.100.1")).toBe(false);
+    expect(await allowResetRequest("bob@example.com", "198.51.100.1")).toBe(true);
+  });
+
+  it("limits requests per IP across emails", async () => {
+    for (let i = 0; i < MAX_RESETS_PER_IP; i++)
+      expect(await allowResetRequest(`user${i}@example.com`, "203.0.113.9")).toBe(true);
+    expect(await allowResetRequest("another@example.com", "203.0.113.9")).toBe(false);
   });
 });

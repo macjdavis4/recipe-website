@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { FormNotice } from "@/components/form/form-notice";
 import { safeCallbackUrl } from "@/features/auth/callback-url";
 import { AuthCard } from "@/features/auth/components/auth-card";
 import { GoogleButton } from "@/features/auth/components/google-button";
@@ -13,9 +14,9 @@ export const metadata: Metadata = { title: "Log in" };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ callbackUrl?: string; error?: string }>;
+  searchParams: Promise<{ callbackUrl?: string; error?: string; reset?: string }>;
 }) {
-  const { callbackUrl, error } = await searchParams;
+  const { callbackUrl, error, reset } = await searchParams;
   const next = safeCallbackUrl(callbackUrl);
   if (await auth()) redirect(next);
 
@@ -34,8 +35,15 @@ export default async function LoginPage({
         </p>
       }
     >
+      {reset === "1" && <FormNotice message="Password updated. Log in with your new password." />}
       {isGoogleEnabled() && <GoogleButton callbackUrl={next} />}
       <LoginForm callbackUrl={next} initialError={oauthErrorMessage(error)} />
+      <Link
+        href="/forgot-password"
+        className="-mt-2 inline-flex min-h-11 items-center self-start text-sm font-medium text-primary underline underline-offset-4"
+      >
+        Forgot your password?
+      </Link>
     </AuthCard>
   );
 }

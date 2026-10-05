@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { loginSchema, signupSchema } from "./schemas";
+import { loginSchema, resetPasswordSchema, signupSchema } from "./schemas";
 
 describe("signupSchema", () => {
   const valid = { name: " Ada ", email: " Ada@Example.COM ", password: "correct horse" };
@@ -39,5 +39,24 @@ describe("loginSchema", () => {
 
   it("requires both fields", () => {
     expect(loginSchema.safeParse({ email: "", password: "" }).success).toBe(false);
+  });
+});
+
+describe("resetPasswordSchema", () => {
+  const valid = { token: "abc", password: "new password", confirmPassword: "new password" };
+
+  it("accepts matching passwords", () => {
+    expect(resetPasswordSchema.safeParse(valid).success).toBe(true);
+  });
+
+  it("rejects mismatched, short, or token-less input", () => {
+    const mismatch = resetPasswordSchema.safeParse({ ...valid, confirmPassword: "other" });
+    expect(mismatch.success).toBe(false);
+    expect(mismatch.error?.issues[0].path).toEqual(["confirmPassword"]);
+    expect(
+      resetPasswordSchema.safeParse({ ...valid, password: "short", confirmPassword: "short" })
+        .success,
+    ).toBe(false);
+    expect(resetPasswordSchema.safeParse({ ...valid, token: "" }).success).toBe(false);
   });
 });
