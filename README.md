@@ -14,7 +14,6 @@ The project codename is **Larder**, which you will still see in internal names (
 - [Testing](#testing)
 - [Architecture](#architecture)
 - [Deploying to DigitalOcean](#deploying-to-digitalocean)
-- [Operating production](#operating-production)
 - [Future ideas](#future-ideas)
 
 ## Features
@@ -29,17 +28,17 @@ The project codename is **Larder**, which you will still see in internal names (
 
 ## Tech stack
 
-| Area       | Choice                                                                                                                                                        |
-| ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| App        | Next.js 15 (App Router, Server Components, Server Actions), TypeScript (strict)                                                                               |
-| UI         | Tailwind CSS v4, shadcn/ui on Radix, lucide-react, next-themes, Fraunces and Inter                                                                            |
-| Data       | PostgreSQL 16, Prisma 6                                                                                                                                       |
-| Auth       | Auth.js v5: credentials with bcrypt, JWT sessions, optional Google                                                                                            |
-| Validation | Zod for forms, actions, route handlers, env, and AI output; react-hook-form                                                                                   |
-| AI         | Anthropic SDK behind an `AIProvider` interface, with a mock for tests                                                                                         |
-| Images     | `StorageAdapter`: local disk in development, DigitalOcean Spaces in production                                                                                |
-| Tests      | Vitest (unit), Playwright (end to end, desktop and 390px)                                                                                                     |
-| Production | One DigitalOcean Droplet running Docker Compose: app, Postgres, Caddy (HTTPS), nightly backups. Deployed by GitHub Actions through GitHub Container Registry. |
+| Area       | Choice                                                                                                                                                                                                                  |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| App        | Next.js 15 (App Router, Server Components, Server Actions), TypeScript (strict)                                                                                                                                         |
+| UI         | Tailwind CSS v4, shadcn/ui on Radix, lucide-react, next-themes, Fraunces and Inter                                                                                                                                      |
+| Data       | PostgreSQL 16, Prisma 6                                                                                                                                                                                                 |
+| Auth       | Auth.js v5: credentials with bcrypt, JWT sessions, optional Google                                                                                                                                                      |
+| Validation | Zod for forms, actions, route handlers, env, and AI output; react-hook-form                                                                                                                                             |
+| AI         | Anthropic SDK behind an `AIProvider` interface, with a mock for tests                                                                                                                                                   |
+| Images     | `StorageAdapter`: local disk in development, DigitalOcean Spaces in production                                                                                                                                          |
+| Tests      | Vitest (unit), Playwright (end to end, desktop and 390px)                                                                                                                                                               |
+| Production | One DigitalOcean Droplet running the app container behind the host's nginx (Certbot HTTPS), with DigitalOcean Managed PostgreSQL. Deployed by GitHub Actions through GitHub Container Registry on every push to `main`. |
 
 ## Run it locally
 
@@ -71,8 +70,8 @@ All configuration comes from environment variables, validated at start-up by `sr
 
 | Variable                                                                                             | Required      | Description                                                                                                                  |
 | ---------------------------------------------------------------------------------------------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `DATABASE_URL`                                                                                       | Yes           | Postgres connection string. In production, compose builds it from the `POSTGRES_*` values.                                   |
-| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`                                                  | Compose       | Used by both Docker Compose files. Use a hex password (`openssl rand -hex 32`) so it is safe inside a URL.                   |
+| `DATABASE_URL`                                                                                       | Yes           | Postgres connection string. In production, the Managed PostgreSQL string ending in `?sslmode=require`.                       |
+| `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`                                                  | Local only    | Used by `docker-compose.yml` for the development database.                                                                   |
 | `AUTH_SECRET`                                                                                        | Yes           | 32+ random characters for signing sessions: `openssl rand -base64 33`.                                                       |
 | `AUTH_URL`                                                                                           | Yes           | The public site URL (`http://localhost:3000` locally, `https://your-domain` in production). Also used for link-preview URLs. |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`                                                           | No            | Turns on Google sign-in when both are set.                                                                                   |
@@ -82,9 +81,6 @@ All configuration comes from environment variables, validated at start-up by `sr
 | `AI_PROVIDER`                                                                                        | No            | `mock` or `anthropic`. Blank means `anthropic`, except tests, which always use the mock.                                     |
 | `STORAGE_DRIVER`                                                                                     | No            | `local` (default, files in `public/uploads`) or `spaces`. Use `spaces` in production.                                        |
 | `SPACES_KEY`, `SPACES_SECRET`, `SPACES_REGION`, `SPACES_ENDPOINT`, `SPACES_BUCKET`, `SPACES_CDN_URL` | With `spaces` | DigitalOcean Spaces credentials, bucket, and CDN URL for recipe photos.                                                      |
-| `SPACES_BACKUP_BUCKET`                                                                               | Production    | Private Spaces bucket for nightly database backups.                                                                          |
-| `BACKUP_RETENTION_DAYS`                                                                              | No            | Days of backups to keep. Default 14.                                                                                         |
-| `DOMAIN`                                                                                             | Production    | Domain Caddy serves and gets certificates for, e.g. `recipes.example.com`.                                                   |
 | `SEED_PASSWORD`                                                                                      | No            | Password for demo users. Default `cookbook-demo`; required to seed in production.                                            |
 | `E2E_DATABASE_URL`                                                                                   | No            | Overrides the end-to-end database (defaults to `DATABASE_URL` renamed to `larder_test`).                                     |
 | `PLAYWRIGHT_CHROMIUM_EXECUTABLE`                                                                     | No            | Path to a preinstalled Chromium when `playwright install` cannot download one.                                               |
@@ -117,7 +113,7 @@ All configuration comes from environment variables, validated at start-up by `sr
 - AI routes with a stub provider: 401, 429, 400, streaming, refusals, and one retry on bad output.
 - Markdown sanitization of AI answers.
 - AA contrast for every theme color pair.
-- Deployment rules, such as healthchecks and that only Caddy publishes ports.
+- Deployment rules: the app's healthcheck and restart policy, a loopback-only port, and the nginx template's headers, upload limit, and unbuffered streaming.
 
 **End-to-end tests** (`pnpm test:e2e`) run a production build against a separate `larder_test` database, at desktop width and at 390px. Global setup migrates, empties, and seeds that database, and refuses to run against any database with another name. The server runs with `AI_PROVIDER=mock`, so tests never call the real AI API. The suite covers:
 
@@ -147,7 +143,7 @@ src/
     ai/                   AIProvider interface, Anthropic and mock providers, prompts (server-only)
     storage/              StorageAdapter, local and Spaces drivers, file signatures
 prisma/                   schema, migrations, idempotent seed
-deploy/                   Dockerfile, compose files, Caddyfile, backup image, server setup
+deploy/                   Dockerfile, compose files, nginx site template, server setup and verification
 e2e/                      Playwright tests and fixtures
 ```
 
@@ -165,7 +161,7 @@ Every create, update, and delete checks the session on the server. Updates and d
 - An unknown email still runs a bcrypt compare, so response timing does not reveal which accounts exist.
 - Failed logins are counted per email and per IP in a `LoginAttempt` table, which keeps the app container stateless.
 - Signups are limited per IP.
-- The client IP is the last `X-Forwarded-For` hop, the one added by Caddy.
+- The client IP is the last `X-Forwarded-For` hop, the one added by nginx.
 
 ### AI requests
 
@@ -196,7 +192,7 @@ In production, photos go to Spaces and are served from its CDN. The demo seed's 
 
 ### Production stack
 
-Caddy (HTTPS, security headers, CSP) proxies to the app. The app runs `prisma migrate deploy` on start, then serves from the Next.js standalone build. Postgres and the app are only reachable on the internal Docker network. A backup container runs `pg_dump` nightly to Spaces.
+The host's nginx terminates HTTPS (Certbot), sets the security headers and CSP, and proxies to the app container on `127.0.0.1:3000`. The app runs `prisma migrate deploy` on start, then serves the Next.js standalone build. The database is DigitalOcean Managed PostgreSQL over SSL, reachable only from the Droplet, with daily backups and point-in-time recovery.
 
 ### Decisions and trade-offs
 
@@ -207,124 +203,21 @@ Caddy (HTTPS, security headers, CSP) proxies to the app. The app runs `prisma mi
 
 ## Deploying to DigitalOcean
 
-This is a one-time setup. After it, every merge to `main` deploys automatically. The deploy workflow skips the deploy step until the secrets below exist, so merging before you finish does no harm.
+**Follow [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md).** It goes from an existing Droplet and Managed PostgreSQL cluster to a live site, and covers day-to-day operations and troubleshooting.
 
-### 1. Create the Droplet
+In short:
 
-- Ubuntu 24.04, Basic plan. 2 GB of RAM is comfortable; 1 GB works with the swap the setup script adds. The app image is built by GitHub Actions, not on the server (only the small backup image builds there).
-- Add your own SSH key when creating it.
-- Optional: enable DigitalOcean backups or snapshots as a second safety net.
+1. Prepare the database: allow the Droplet as a trusted source, create a `larder` user and database, and grant it `CREATE` on schema `public`.
+2. Create a Spaces bucket and access key for photos.
+3. Point your domain at the Droplet.
+4. Run `deploy/server-setup.sh` on the Droplet. It creates a restricted `deploy` user, sets up `/opt/larder`, installs the nginx site, and gets a Certbot certificate.
+5. Run `deploy/verify-server.sh` to check the server and the database.
+6. Add the GitHub secrets (`DEPLOY_HOST`, `DEPLOY_USER`, `DEPLOY_SSH_KEY`, `DEPLOY_KNOWN_HOSTS`, `PRODUCTION_ENV`) and the `PRODUCTION_URL` variable.
+7. Push to `main`.
 
-### 2. Create two Spaces buckets and a key
+**After setup**, every push to `main` runs the checks, builds and pushes `ghcr.io/macjdavis4/recipe-website:<commit>`, deploys it over SSH, and waits for `https://your-domain/api/health`. Run `verify-server.sh` again afterwards: every check should pass.
 
-- **Images bucket** (e.g. `larder-images`): turn on the CDN, and keep "file listing" restricted. Photos are uploaded with public-read access, so the site can show them.
-- **Backups bucket** (e.g. `larder-backups`): private, no CDN.
-- **Access key:** create a Spaces access key. Its key and secret become `SPACES_KEY` and `SPACES_SECRET`.
-- **Region values:** for a region like `nyc3`, the endpoint is `https://nyc3.digitaloceanspaces.com` and the CDN URL is `https://larder-images.nyc3.cdn.digitaloceanspaces.com`.
-
-### 3. Point your domain at the Droplet
-
-Create an `A` record (and `AAAA` if you use IPv6) for your domain to the Droplet's IP. Caddy gets HTTPS certificates automatically once DNS resolves.
-
-### 4. Prepare the server
-
-Create a key pair that GitHub Actions will use to deploy (no passphrase):
-
-```bash
-ssh-keygen -t ed25519 -N "" -C "github-actions-deploy" -f larder-deploy
-```
-
-Copy the setup script to the Droplet and run it as root with the public key:
-
-```bash
-scp deploy/server-setup.sh root@YOUR_DROPLET_IP:
-ssh root@YOUR_DROPLET_IP "DEPLOY_PUBLIC_KEY='$(cat larder-deploy.pub)' bash server-setup.sh"
-```
-
-It installs Docker and the compose plugin, sets up log rotation, creates a `deploy` user (in the `docker` group) holding only that key, and creates `/opt/larder`. It also allows SSH logins by key only, opens only SSH, 80, and 443 in `ufw`, adds 2 GB of swap, and turns on unattended security upgrades. It is safe to re-run.
-
-### 5. Add GitHub secrets and a variable
-
-In the repository, go to **Settings > Secrets and variables > Actions**.
-
-| Secret               | Value                                                                |
-| -------------------- | -------------------------------------------------------------------- |
-| `DEPLOY_HOST`        | Droplet IP or hostname                                               |
-| `DEPLOY_USER`        | `deploy`                                                             |
-| `DEPLOY_SSH_KEY`     | Contents of `larder-deploy` (the private key)                        |
-| `DEPLOY_KNOWN_HOSTS` | Output of `ssh-keyscan YOUR_DROPLET_IP` (pins the server's host key) |
-| `PRODUCTION_ENV`     | The full production `.env` file (below)                              |
-
-| Variable         | Value                                                        |
-| ---------------- | ------------------------------------------------------------ |
-| `PRODUCTION_URL` | `https://your-domain`, used for the post-deploy health check |
-
-A starting point for `PRODUCTION_ENV`:
-
-```bash
-DOMAIN="recipes.example.com"
-POSTGRES_USER="larder"
-POSTGRES_PASSWORD="<openssl rand -hex 32>"
-POSTGRES_DB="larder"
-AUTH_SECRET="<openssl rand -base64 33>"
-AUTH_URL="https://recipes.example.com"
-ANTHROPIC_API_KEY="<your key>"
-AI_MODEL="claude-haiku-4-5-20251001"
-AI_RATE_LIMIT_PER_HOUR=30
-STORAGE_DRIVER="spaces"
-SPACES_KEY="<spaces key>"
-SPACES_SECRET="<spaces secret>"
-SPACES_REGION="nyc3"
-SPACES_ENDPOINT="https://nyc3.digitaloceanspaces.com"
-SPACES_BUCKET="larder-images"
-SPACES_CDN_URL="https://larder-images.nyc3.cdn.digitaloceanspaces.com"
-SPACES_BACKUP_BUCKET="larder-backups"
-# Optional: GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
-```
-
-To enable Google sign-in, create an OAuth client in Google Cloud with the redirect URI `https://your-domain/api/auth/callback/google`, and add both values.
-
-Optional: under **Settings > Environments**, add required reviewers to the `production` environment so each deploy waits for your approval.
-
-### 6. Deploy
-
-Merge to `main`, or run the **Deploy** workflow by hand from the Actions tab. It runs these steps:
-
-1. Runs lint, typecheck, and unit tests.
-2. Builds and pushes `ghcr.io/macjdavis4/recipe-website:<commit>` (and `:latest`).
-3. Copies `deploy/` and your `.env` to `/opt/larder`.
-4. Pulls the image with a short-lived token and restarts the stack. Migrations run as the app starts.
-5. Waits for `https://your-domain/api/health` to report `ok`, and prints logs if it does not.
-
-Production starts with an empty database. The demo seed is meant for development.
-
-## Operating production
-
-Run these on the Droplet as the `deploy` user, from `/opt/larder`. `dc` is shorthand for `docker compose -f docker-compose.prod.yml`.
-
-| Task              | Command                                                                                |
-| ----------------- | -------------------------------------------------------------------------------------- |
-| Status and health | `dc ps`                                                                                |
-| Logs              | `dc logs -f app` (or `caddy`, `db`, `backup`)                                          |
-| Health check      | `curl https://your-domain/api/health`                                                  |
-| Back up now       | `dc exec backup backup.sh`                                                             |
-| List backups      | `dc exec backup restore.sh`                                                            |
-| Restore a backup  | `dc stop app && dc exec backup restore.sh larder-YYYYMMDD-HHMMSS.dump && dc start app` |
-| Database shell    | `dc exec db psql -U larder larder`                                                     |
-
-- **Changing configuration:** edit the `PRODUCTION_ENV` secret, then re-run the Deploy workflow. The server's `.env` is rewritten on every deploy, so edits made on the server do not last.
-- **Rolling back:** set `IMAGE_TAG` in `/opt/larder/.env` to an earlier commit SHA (every deploy's image stays in GHCR), then run `dc up -d app`. The next deploy from `main` replaces it. Migrations only move forward, so roll back code only when its schema is still compatible. Restore a backup if not.
-  - Earlier images usually remain on the server. If one is not there and the package is private, log in first: `docker login ghcr.io` with a personal access token that has `read:packages`.
-- **Backups:** these run nightly at 03:15 UTC and keep 14 days. Test a restore occasionally.
-- **Firewall:** Docker manages its own firewall rules for published ports. That is fine here, because only Caddy publishes any (80 and 443).
-- **Checking the stack locally before a deploy:** build the image, then run it over plain HTTP with the local override:
-
-  ```bash
-  docker build -f deploy/Dockerfile -t larder-app:local .
-  # In a copy of deploy/ with a .env containing DOMAIN=":80":
-  docker compose -f docker-compose.prod.yml -f docker-compose.local.yml up -d
-  curl http://localhost:8080/api/health
-  ```
+To check the production image locally before deploying, run `deploy/docker-compose.local.yml` (see its header).
 
 ## Future ideas
 
