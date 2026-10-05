@@ -16,10 +16,13 @@ import { SEED_RECIPES, SEED_USERS } from "./seed-data";
 const db = new PrismaClient();
 
 async function main() {
-  const password =
-    process.env.SEED_PASSWORD ?? (process.env.NODE_ENV === "production" ? "" : "cookbook-demo");
-  if (password.length < 8)
+  // A blank SEED_PASSWORD (as in .env.example) counts as unset.
+  const configured = process.env.SEED_PASSWORD?.trim();
+  if (process.env.NODE_ENV === "production" && !configured) {
     throw new Error("Set SEED_PASSWORD (8+ characters) to seed in production.");
+  }
+  const password = configured || "cookbook-demo";
+  if (password.length < 8) throw new Error("SEED_PASSWORD must be at least 8 characters.");
   const passwordHash = await bcrypt.hash(password, 12);
 
   const userIds = new Map<string, string>();
