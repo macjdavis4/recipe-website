@@ -21,13 +21,19 @@ s3() { aws s3 --endpoint-url "$SPACES_ENDPOINT" --only-show-errors "$@"; }
 log() { echo "[$(date -u +%FT%TZ)] $*"; }
 
 if [ "${1:-}" = "--check" ]; then
-  # Fails on bad credentials or a missing bucket; refuses a public bucket.
-  acl="$(aws s3api get-bucket-acl --endpoint-url "$SPACES_ENDPOINT" --bucket "$SPACES_BACKUP_BUCKET" --output text)"
-  if echo "$acl" | grep -q "AllUsers"; then
-    echo "Bucket ${SPACES_BACKUP_BUCKET} is public. Make it private before storing database dumps in it." >&2
+  # Uses only what a limited (per-bucket) Spaces key may do: list and read.
+  # Fails on bad credentials or a missing bucket.
+  latest="$(aws s3 ls --endpoint-url "$SPACES_ENDPOINT" "${PREFIX}/" | awk '{print $4}' | grep '^larder-.*\.dump$' | sort | tail -n 1 || true)"
+  # Then checks privacy the way a stranger would: without credentials.
+  if aws s3 ls --no-sign-request --endpoint-url "$SPACES_ENDPOINT" "s3://${SPACES_BACKUP_BUCKET}/" > /dev/null 2>&1; then
+    echo "Bucket ${SPACES_BACKUP_BUCKET} can be listed by anyone. Set its file listing to Restricted." >&2
     exit 2
   fi
-  latest="$(aws s3 ls --endpoint-url "$SPACES_ENDPOINT" "${PREFIX}/" | awk '{print $4}' | grep '^larder-.*\.dump$' | sort | tail -n 1 || true)"
+  if [ -n "$latest" ] && aws s3api head-object --no-sign-request --endpoint-url "$SPACES_ENDPOINT" \
+    --bucket "$SPACES_BACKUP_BUCKET" --key "postgres/${latest}" > /dev/null 2>&1; then
+    echo "Dump ${latest} can be downloaded by anyone. Make the bucket and its files private." >&2
+    exit 2
+  fi
   echo "Spaces OK: ${SPACES_BACKUP_BUCKET} is private. Latest copy: ${latest:-none yet}"
   exit 0
 fi

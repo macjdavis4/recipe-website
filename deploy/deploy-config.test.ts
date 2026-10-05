@@ -71,6 +71,12 @@ describe("deploy config", () => {
       expect(read("deploy/backup/backup.sh")).toMatch(/SPACES_BACKUP_BUCKET:\?/);
     });
 
+    it("checks the backup bucket with only what a limited Spaces key may do", () => {
+      const script = read("deploy/backup/backup.sh");
+      expect(script).not.toContain("get-bucket-acl");
+      expect(script).toContain("--no-sign-request");
+    });
+
     it("ships the backup folder with each deploy and builds it", () => {
       const workflow = read(".github/workflows/deploy.yml");
       expect(workflow).toMatch(/scp -r [^\n]*deploy\/backup /);
