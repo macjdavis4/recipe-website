@@ -1,0 +1,41 @@
+# Weekly pull requests for dependency updates. Each one runs CI like any other
+# PR; merge it when it's green and it deploys as usual.
+#
+# Major versions are left alone (they need real migration work: Next.js 16,
+# Prisma 7, Postgres 17). Prisma is updated by hand because its version is
+# pinned in deploy/Dockerfile too. Security fixes still arrive as their own
+# PRs through Dependabot security updates (Settings > Code security).
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      minor-and-patch:
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: prisma
+      - dependency-name: "@prisma/client"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ["*"]
+
+  - package-ecosystem: docker
+    directories: [/deploy, /deploy/backup]
+    schedule:
+      interval: weekly
+      day: monday
+    ignore:
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]

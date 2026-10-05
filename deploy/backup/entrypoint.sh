@@ -4,7 +4,7 @@
 set -eu
 umask 077
 : > /etc/backup.env
-for name in PGHOST PGUSER PGPASSWORD PGDATABASE SPACES_KEY SPACES_SECRET SPACES_REGION SPACES_ENDPOINT SPACES_BACKUP_BUCKET BACKUP_RETENTION_DAYS; do
+for name in PGHOST PGUSER PGPASSWORD PGDATABASE SPACES_KEY SPACES_SECRET SPACES_REGION SPACES_ENDPOINT SPACES_BACKUP_BUCKET BACKUP_RETENTION_DAYS BACKUP_PING_URL; do
   value="$(printenv "$name" || true)"
   printf "export %s='%s'\n" "$name" "$(printf '%s' "$value" | sed "s/'/'\\\\''/g")" >> /etc/backup.env
 done

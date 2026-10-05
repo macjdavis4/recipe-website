@@ -71,6 +71,16 @@ describe("deploy config", () => {
       expect(read("deploy/backup/backup.sh")).toMatch(/SPACES_BACKUP_BUCKET:\?/);
     });
 
+    it("passes every backup setting through to the cron job", () => {
+      // busybox crond drops the container environment; entrypoint.sh saves each listed name.
+      const names = [...service("backup").matchAll(/^ {6}([A-Z_]+):/gm)].map((m) => m[1]);
+      const saved = read("deploy/backup/entrypoint.sh")
+        .match(/for name in ([^;]+);/)![1]
+        .split(" ");
+      expect(names).toContain("BACKUP_PING_URL");
+      for (const name of names) expect(saved, name).toContain(name);
+    });
+
     it("checks the backup bucket with only what a limited Spaces key may do", () => {
       const script = read("deploy/backup/backup.sh");
       expect(script).not.toContain("get-bucket-acl");
